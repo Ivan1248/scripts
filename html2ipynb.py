@@ -9,7 +9,7 @@ def downloadFile(URL=None):
     return content
 
 def extract_cells(html):
-    r = re.compile("((?:<h\d|<div)[^%]*?)(?=<h\d|<div)")
+    r = re.compile("((?:<h\d|<div).*?)(?=<h\d|<div)", re.DOTALL)
     return r.findall(html)
 
 def refine_cell(html, base_url):
@@ -30,7 +30,7 @@ def refine_cell(html, base_url):
 
         # For each match, look up the new string in the replacements
         string = regexp.sub(lambda match: replacements[match.group(0)], string)
-        imgregexp = re.compile(r'((<img .*?src=")(.*?)(" ?)(?:.*?alt=".*?")?(.*>))')        
+        imgregexp = re.compile(r'((<img .*?src=")(.*?)(" ?)(?:.*?alt=".*?")?(.*?>))', re.DOTALL)        
         string = imgregexp.sub(r'\1\n\2'+base_url+r'/\3\4 alt="\3" \5', string)
         return string
 
@@ -78,7 +78,7 @@ def main():
         out = sys.argv[2]
         if not out.endswith(".ipynb"):
             out += ".ipynb"
-    print(url)
+
     html = downloadFile(url)
     html = html.decode("UTF-8", errors="ignore")
     raw_cells = extract_cells(html)
