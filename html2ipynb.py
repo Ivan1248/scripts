@@ -9,7 +9,7 @@ def downloadFile(URL=None):
     return content
 
 def extract_cells(html):
-    r = re.compile("((?:<h\d|<div).*?)(?=<h\d|<div)", re.DOTALL)
+    r = re.compile(r"((?:<h\d|<div).*?)(?=<h\d|<div)", re.DOTALL)
     return r.findall(html)
 
 def refine_cell(html, base_url):
@@ -21,14 +21,8 @@ def refine_cell(html, base_url):
         :rtype: str
         """
         # Place longer ones first to keep shorter substrings from matching where the longer ones should take place
-        # For instance given the replacements {'ab': 'AB', 'abc': 'ABC'} against the string 'hey abc', it should produce
-        # 'hey ABC' and not 'hey ABc'
         substrs = sorted(replacements, key=len, reverse=True)
-
-        # Create a big OR regex that matches any of the substrings to replace
         regexp = re.compile('|'.join(map(re.escape, substrs)))
-
-        # For each match, look up the new string in the replacements
         string = regexp.sub(lambda match: replacements[match.group(0)], string)
         imgregexp = re.compile(r'((<img .*?src=")(.*?)(" ?)(?:.*?alt=".*?")?(.*?>))', re.DOTALL)        
         string = imgregexp.sub(r'\1\n\2'+base_url+r'/\3\4 alt="\3" \5', string)
@@ -38,8 +32,7 @@ def refine_cell(html, base_url):
         r'\(' : '$', 
         r'\)' : '$', 
         '<pre><code class="python">' : "``` python\n", 
-        '</code></pre>' : "```",
-        r'((<img .*?src=")(.*)(".*>))' : r"\1\n\2"+base_url+r"/\3\4"})
+        '</code></pre>' : "```"})
 
 def create_ipynb(cells):
     import json
@@ -66,6 +59,11 @@ def create_ipynb(cells):
         }""")    
     return "".join(all)
 
+def saveNotebook(file_path, notebook_content):
+    f = open(file_path, "wb")
+    f.write(notebook_content.encode("utf-8", errors="ignore"))
+    f.close()
+
 def main():
     if len(sys.argv) < 2:
         print("usage: html2ipynb url [outfile]")
@@ -84,10 +82,7 @@ def main():
     raw_cells = extract_cells(html)
     refined_cells = [refine_cell(c, base_url) for c in raw_cells]
     ipynb = create_ipynb(refined_cells)
-
-    f = open(out, "wb")
-    f.write(ipynb.encode("utf-8", errors="ignore"))
-    f.close()
+    saveNotebook(out, ipynb)
 
     print('"'+url+'" converted to "'+out+'"')
 
