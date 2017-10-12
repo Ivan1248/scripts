@@ -2,7 +2,7 @@
 import sys
 import re
 
-def downloadFile(URL=None):
+def download_file(URL=None):
     import httplib2
     h = httplib2.Http(".cache")
     resp, content = h.request(URL, "GET")
@@ -59,7 +59,7 @@ def create_ipynb(cells):
         }""")    
     return "".join(all)
 
-def saveNotebook(file_path, notebook_content):
+def save_notebook(file_path, notebook_content):
     f = open(file_path, "wb")
     f.write(notebook_content.encode("utf-8", errors="ignore"))
     f.close()
@@ -77,12 +77,12 @@ def main():
         if not out.endswith(".ipynb"):
             out += ".ipynb"
 
-    html = downloadFile(url)
+    html = download_file(url)
     html = html.decode("UTF-8", errors="ignore")
     raw_cells = extract_cells(html)
     refined_cells = [refine_cell(c, base_url) for c in raw_cells]
     ipynb = create_ipynb(refined_cells)
-    saveNotebook(out, ipynb)
+    save_notebook(out, ipynb)
 
     print('"'+url+'" converted to "'+out+'"')
 
