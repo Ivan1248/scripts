@@ -15,19 +15,14 @@ def extract_cells(html):
     return r.findall(html)
 
 def refine_cell(html, base_url):
-    def multireplace(string, replacements):
-        substrs = sorted(replacements, key=len, reverse=True)
-        regexp = re.compile('|'.join(map(re.escape, substrs)))
-        string = regexp.sub(lambda match: replacements[match.group(0)], string)
-        imgregexp = re.compile(r'((<img .*?src=")(.*?)(" ?)(?:.*?alt=".*?")?(.*?>))', re.DOTALL)        
-        string = imgregexp.sub(r'\1\n\2'+base_url+r'/\3\4 alt="\3" \5', string)
-        return string
-
-    return multireplace(html, { 
-        r'\(' : '$', 
-        r'\)' : '$', 
-        '<pre><code class="python">' : "``` python\n", 
-        '</code></pre>' : "```"})
+    replacements = { r'\(' : '$', r'\)' : '$', 
+        '<pre><code class="python">' : "``` python\n", '</code></pre>' : "```"}
+    substrs = sorted(replacements, key=len, reverse=True)
+    regexp = re.compile('|'.join(map(re.escape, substrs)))
+    html = regexp.sub(lambda match: replacements[match.group(0)], html)
+    imgregexp = re.compile(r'((<img .*?src=")(.*?)(" ?)(?:.*?alt=".*?")?(.*?>))', re.DOTALL)        
+    html = imgregexp.sub(r'\1\n\2'+base_url+r'/\3\4 alt="\3" \5', html)
+    return html
 
 def create_ipynb(cells):
     import json
