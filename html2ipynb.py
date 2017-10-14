@@ -1,4 +1,6 @@
-# html to ipynb
+#!/usr/bin/python
+# html2ipynb
+
 import sys
 import re
 
@@ -14,13 +16,6 @@ def extract_cells(html):
 
 def refine_cell(html, base_url):
     def multireplace(string, replacements):
-        """
-        Given a string and a replacement map, it returns the replaced string.
-        :param str string: string to execute replacements on
-        :param dict replacements: replacement dictionary {value to find: value to replace}
-        :rtype: str
-        """
-        # Place longer ones first to keep shorter substrings from matching where the longer ones should take place
         substrs = sorted(replacements, key=len, reverse=True)
         regexp = re.compile('|'.join(map(re.escape, substrs)))
         string = regexp.sub(lambda match: replacements[match.group(0)], string)
@@ -66,7 +61,7 @@ def save_notebook(file_path, notebook_content):
 
 def main():
     if len(sys.argv) < 2:
-        print("usage: html2ipynb url [outfile]")
+        print("usage: html2ipynb.py url [outfile]")
     url = sys.argv[1]
     out = ""
     base_url, name = url.rsplit('/', 1)
