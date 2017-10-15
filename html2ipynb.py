@@ -16,7 +16,8 @@ def extract_cells(html):
 
 def refine_cell(html, base_url):
     replacements = { r'\(' : '$', r'\)' : '$', 
-        '<pre><code class="python">' : "``` python\n", '</code></pre>' : "```"}
+        '<pre><code class="python">' : "``` python\n", '</code></pre>' : "```",
+        '<code>' : '`', '</code>' : '`'}
     substrs = sorted(replacements, key=len, reverse=True)
     regexp = re.compile('|'.join(map(re.escape, substrs)))
     html = regexp.sub(lambda match: replacements[match.group(0)], html)
