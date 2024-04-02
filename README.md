@@ -1,1 +1,1 @@
-# scripts
+# Scripts, notebooks and other small programs
