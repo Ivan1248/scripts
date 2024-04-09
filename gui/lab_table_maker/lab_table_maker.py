@@ -40,7 +40,7 @@ def split_groups(df):
     return room_to_groups
 
 
-def process_input(input: str):
+def process_input(input: str, num_pages_per_sheet=1):
     df = read_table(input)
     df["Bodovi"] = ""
     df["Komentar"] = " " * 64
@@ -74,6 +74,13 @@ def process_input(input: str):
                 + f"\n\n<h3> {group} </h3>"
                 + dfs.to_html()
             )
+        num_filler_pages = (
+            num_pages_per_sheet - (len(groups) + 1) % num_pages_per_sheet
+        ) % num_pages_per_sheet
+        for _ in range(num_filler_pages):
+            output_parts.append('<div class="page-break"></div>')
+    for _ in range(num_filler_pages):
+        output_parts.pop()
     output_parts.append("\n</body>\n</html>")
     return "\n".join(output_parts)
 
@@ -108,8 +115,20 @@ class MyFrame(wx.Frame):
         self.input_textarea = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
         vbox_input.Add(self.input_textarea, proportion=1, flag=wx.EXPAND)
 
+        hbox_options = wx.BoxSizer(wx.HORIZONTAL)
+        vbox_input.Add(hbox_options, flag=wx.EXPAND | wx.TOP, border=5)
+
+        num_pages_label = wx.StaticText(panel, label="Number of pages per sheet:")
+        hbox_options.Add(num_pages_label, flag=wx.EXPAND | wx.LEFT, border=5)
+
+        self.num_pages_selector = num_pages_selector = wx.Choice(
+            panel, choices=list(map(str, [1, 2, 3, 4, 6, 8, 9, 12, 16]))
+        )
+        num_pages_selector.SetStringSelection("1")
+        hbox_options.Add(num_pages_selector, flag=wx.EXPAND | wx.LEFT, border=5)
+
         submit_button = wx.Button(panel, label="Submit")
-        vbox_input.Add(submit_button, flag=wx.EXPAND | wx.TOP, border=5)
+        hbox_options.Add(submit_button, flag=wx.EXPAND | wx.LEFT, border=5)
 
         vbox_output = wx.BoxSizer(wx.VERTICAL)
         hbox.Add(vbox_output, proportion=1, flag=wx.EXPAND | wx.LEFT, border=10)
@@ -124,10 +143,10 @@ class MyFrame(wx.Frame):
         vbox_output.Add(hbox_buttons, flag=wx.EXPAND | wx.TOP, border=5)
 
         copy_button = wx.Button(panel, label="Copy")
-        hbox_buttons.Add(copy_button, proportion=1, flag=wx.EXPAND)
+        hbox_buttons.Add(copy_button, flag=wx.EXPAND)
 
         save_button = wx.Button(panel, label="Save")
-        hbox_buttons.Add(save_button, proportion=1, flag=wx.EXPAND | wx.LEFT, border=5)
+        hbox_buttons.Add(save_button, flag=wx.EXPAND | wx.LEFT, border=5)
 
         submit_button.Bind(wx.EVT_BUTTON, self.on_submit_button_clicked)
         copy_button.Bind(wx.EVT_BUTTON, self.on_copy_button_clicked)
@@ -136,7 +155,10 @@ class MyFrame(wx.Frame):
     def on_submit_button_clicked(self, event):
         input_text = self.input_textarea.GetValue()
         try:
-            output = process_input(input_text)
+            output = process_input(
+                input_text,
+                num_pages_per_sheet=int(self.num_pages_selector.GetStringSelection()),
+            )
             self.output = output
             self.webview.SetPage(output, "")
         except Exception as e:
