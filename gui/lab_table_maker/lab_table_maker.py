@@ -75,12 +75,11 @@ def process_input(input: str, num_pages_per_sheet=1):
                 + '<div class="page-break"></div>'
             )
         num_filler_pages = (
-            num_pages_per_sheet - (len(groups) + 1) % num_pages_per_sheet
+            num_pages_per_sheet - len(groups) % num_pages_per_sheet
         ) % num_pages_per_sheet
         for _ in range(num_filler_pages):
             output_parts.append('<div class="page-break"></div>')
-        output_parts.append('<div class="page-break"></div>')
-    for _ in range(num_filler_pages - 1):
+    for _ in range(num_filler_pages + 1):
         output_parts.pop()
     output_parts.append("\n</body>\n</html>")
     return "\n".join(output_parts)
@@ -113,7 +112,11 @@ class MyFrame(wx.Frame):
         input_label = wx.StaticText(panel, label="Input CSV:")
         vbox_input.Add(input_label, flag=wx.EXPAND)
 
-        input_label.SetToolTip(wx.ToolTip('Ferko → <predmet> → Grupe studenata (sve) → <grupa> (desni klik) → Eksport popisa (CSV)'))
+        input_label.SetToolTip(
+            wx.ToolTip(
+                "Ferko → <predmet> → Grupe studenata (sve) → <grupa> (desni klik) → Eksport popisa (CSV)"
+            )
+        )
 
         self.input_textarea = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
         vbox_input.Add(self.input_textarea, proportion=1, flag=wx.EXPAND)
