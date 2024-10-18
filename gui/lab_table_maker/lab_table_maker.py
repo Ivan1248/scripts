@@ -112,6 +112,8 @@ class MyFrame(wx.Frame):
         input_label = wx.StaticText(panel, label="Input CSV:")
         vbox_input.Add(input_label, flag=wx.EXPAND)
 
+        input_label.SetToolTip(wx.ToolTip('Ferko → <predmet> → Grupe studenata (sve) → <grupa> (desni klik) → Eksport popisa (CSV)'))
+
         self.input_textarea = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
         vbox_input.Add(self.input_textarea, proportion=1, flag=wx.EXPAND)
 
