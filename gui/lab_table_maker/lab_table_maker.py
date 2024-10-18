@@ -62,7 +62,7 @@ def process_input(input: str, num_pages_per_sheet=1):
         <body>"""
     ]
     for room, groups in room_to_groups.items():
-        output_parts.append('<div class="page-break"></div>' + f"\n\n<h2> {room} </h2>")
+        output_parts.append(f"\n\n<h2> {room} </h2>")
         for group, df in groups:
             dfs = df.style.set_properties(**{"text-align": "left"})
             dfs = dfs.set_table_styles(
@@ -70,16 +70,17 @@ def process_input(input: str, num_pages_per_sheet=1):
             )
             dfs.set_properties(subset=["Komentar"], **{"width": "24em"})
             output_parts.append(
-                '<div class="page-break"></div>'
-                + f"\n\n<h3> {group} </h3>"
+                f"\n\n<h3> {group} </h3>"
                 + dfs.to_html()
+                + '<div class="page-break"></div>'
             )
         num_filler_pages = (
             num_pages_per_sheet - (len(groups) + 1) % num_pages_per_sheet
         ) % num_pages_per_sheet
         for _ in range(num_filler_pages):
             output_parts.append('<div class="page-break"></div>')
-    for _ in range(num_filler_pages):
+        output_parts.append('<div class="page-break"></div>')
+    for _ in range(num_filler_pages - 1):
         output_parts.pop()
     output_parts.append("\n</body>\n</html>")
     return "\n".join(output_parts)
