@@ -11,7 +11,7 @@ import wx.html2
 group_header = "Grupa"
 
 
-def read_table(input: str):
+def read_table_from_csv(input: str):
     converters = {
         group_header: str,
         "ID": str,
@@ -30,7 +30,7 @@ def read_table(input: str):
     return df
 
 
-def split_groups(df):
+def split_groups_by_room(df):
     room_to_groups = defaultdict(lambda: [])
     for group, d in df.groupby(group_header):
         room = group.split(" ")[-1]
@@ -40,13 +40,13 @@ def split_groups(df):
     return room_to_groups
 
 
-def process_input(input: str, num_pages_per_sheet=1):
-    df = read_table(input)
+def process_input_csv(input: str, num_pages_per_sheet=1):
+    df = read_table_from_csv(input)
     df["Bodovi"] = ""
-    df["Komentar"] = " " * 64
+    df["Komentar"] = ""
     df.set_index("ID", inplace=True)
     df = df.rename_axis(None)
-    room_to_groups = split_groups(df)
+    room_to_groups = split_groups_by_room(df)
     output_parts = [
         """
         <html>
@@ -61,25 +61,27 @@ def process_input(input: str, num_pages_per_sheet=1):
         </style>
         <body>"""
     ]
+    npps = num_pages_per_sheet
     for room, groups in room_to_groups.items():
-        output_parts.append(f"\n\n<h2> {room} </h2>")
-        for group, df in groups:
+        for i, (group, df) in enumerate(groups):
+            if i % npps == 0:
+                output_parts.append(
+                    f"\n\n<h2> {room} ({i//npps+1}/{(len(groups)+npps-1)//npps}) </h2>"
+                )
             dfs = df.style.set_properties(**{"text-align": "left"})
             dfs = dfs.set_table_styles(
                 [dict(selector="th", props=[("text-align", "left")])]
             )
-            dfs.set_properties(subset=["Komentar"], **{"width": "24em"})
+            dfs = dfs.set_properties(subset=["Komentar"], **{"width": "24em"})
             output_parts.append(
-                f"\n\n<h3> {group} </h3>"
+                f"\n\n<h3> {group}</h3>"
                 + dfs.to_html()
                 + '<div class="page-break"></div>'
             )
-        num_filler_pages = (
-            num_pages_per_sheet - len(groups) % num_pages_per_sheet
-        ) % num_pages_per_sheet
+        num_filler_pages = (npps - len(groups) % npps) % npps
         for _ in range(num_filler_pages):
             output_parts.append('<div class="page-break"></div>')
-    for _ in range(num_filler_pages + 1):
+    for _ in range(num_filler_pages):
         output_parts.pop()
     output_parts.append("\n</body>\n</html>")
     return "\n".join(output_parts)
@@ -109,14 +111,13 @@ class MyFrame(wx.Frame):
         vbox_input = wx.BoxSizer(wx.VERTICAL)
         hbox.Add(vbox_input, proportion=1, flag=wx.EXPAND)
 
-        input_label = wx.StaticText(panel, label="Input CSV:")
-        vbox_input.Add(input_label, flag=wx.EXPAND)
-
+        input_label = wx.StaticText(panel, label="Input CSV: (?)")
         input_label.SetToolTip(
             wx.ToolTip(
                 "Ferko → <predmet> → Grupe studenata (sve) → <grupa> (desni klik) → Eksport popisa (CSV)"
             )
         )
+        vbox_input.Add(input_label, flag=wx.EXPAND)
 
         self.input_textarea = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
         vbox_input.Add(self.input_textarea, proportion=1, flag=wx.EXPAND)
@@ -161,7 +162,7 @@ class MyFrame(wx.Frame):
     def on_submit_button_clicked(self, event):
         input_text = self.input_textarea.GetValue()
         try:
-            output = process_input(
+            output = process_input_csv(
                 input_text,
                 num_pages_per_sheet=int(self.num_pages_selector.GetStringSelection()),
             )
