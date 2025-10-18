@@ -30,13 +30,16 @@ def read_table_from_csv(input: str):
     return df
 
 
-def split_groups_by_room(df):
+def split_groups_by_room(df, sort_by_room=True):
     room_to_groups = defaultdict(lambda: [])
     for group, d in df.groupby(group_header):
         room = group.split(" ")[-1]
         if match := re.search(r"\d{4}-\d{2}-\d{2}", group):
-            room = f"{match.group(0)} {room}"
+            room = f"{room} {match.group(0)}"
         room_to_groups[room].append((group, d.drop(columns=[group_header])))
+    if sort_by_room:
+        rooms = sorted(room_to_groups.keys())
+        room_to_groups = {room: room_to_groups[room] for room in rooms}
     return room_to_groups
 
 
@@ -47,41 +50,51 @@ def process_input_csv(input: str, num_pages_per_sheet=1):
     df.set_index("ID", inplace=True)
     df = df.rename_axis(None)
     room_to_groups = split_groups_by_room(df)
+    npps = num_pages_per_sheet
+
     output_parts = [
         """
         <html>
         <style>
         @media all { .page-break { display: none; } }
-        @media print { .page-break { display: block; page-break-before: always; } }
+        @media print { 
+            .page-break { 
+                display: block;
+                page-break-before: always;
+            } 
+        }
         table, td, th {
             border: 0.05rem solid #000;
             border-collapse: collapse;
             padding: 0.25rem;
         }
+        .no-break {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
         </style>
-        <body>"""
+        <body>""",
     ]
-    npps = num_pages_per_sheet
     for room, groups in room_to_groups.items():
         for i, (group, df) in enumerate(groups):
-            if i % npps == 0:
+            dfs = df.style.set_properties(**{"text-align": "left"})
+            dfs = dfs.set_table_styles([dict(selector="th", props=[("text-align", "left")])])
+            dfs = dfs.set_properties(subset=["Komentar"], **{"width": "24em"})
+            output_parts.append(f'\n<div class="no-break">')
+            if npps != 0 and i % npps == 0:
                 output_parts.append(
                     f"\n\n<h2> {room} ({i//npps+1}/{(len(groups)+npps-1)//npps}) </h2>"
                 )
-            dfs = df.style.set_properties(**{"text-align": "left"})
-            dfs = dfs.set_table_styles(
-                [dict(selector="th", props=[("text-align", "left")])]
-            )
-            dfs = dfs.set_properties(subset=["Komentar"], **{"width": "24em"})
             output_parts.append(
-                f"\n\n<h3> {group}</h3>"
+                f"\n<h2> {group}</h2>"
                 + dfs.to_html()
-                + '<div class="page-break"></div>'
+                + "</div>"
+                + '<div class="page-break"></div>' * (npps != 0),
             )
-        num_filler_pages = (npps - len(groups) % npps) % npps
-        for _ in range(num_filler_pages):
+        num_filler_page_breaks = 1 if npps == 0 else (npps - len(groups) % npps) % npps
+        for _ in range(num_filler_page_breaks):
             output_parts.append('<div class="page-break"></div>')
-    for _ in range(num_filler_pages):
+    for _ in range(num_filler_page_breaks):
         output_parts.pop()
     output_parts.append("\n</body>\n</html>")
     return "\n".join(output_parts)
@@ -129,7 +142,7 @@ class MyFrame(wx.Frame):
         hbox_options.Add(num_pages_label, flag=wx.EXPAND | wx.LEFT, border=5)
 
         self.num_pages_selector = num_pages_selector = wx.Choice(
-            panel, choices=list(map(str, [1, 2, 3, 4, 6, 8, 9, 12, 16]))
+            panel, choices=list(map(str, [0, 1, 2, 3, 4, 6, 8, 9, 12, 16]))
         )
         num_pages_selector.SetStringSelection("1")
         hbox_options.Add(num_pages_selector, flag=wx.EXPAND | wx.LEFT, border=5)
@@ -178,9 +191,7 @@ class MyFrame(wx.Frame):
                 wx.TheClipboard.SetData(data)
                 wx.TheClipboard.Close()
             else:
-                wx.MessageBox(
-                    "Unable to open the clipboard", "Error", wx.OK | wx.ICON_ERROR
-                )
+                wx.MessageBox("Unable to open the clipboard", "Error", wx.OK | wx.ICON_ERROR)
         except Exception as e:
             wx.MessageBox(str(e), "Error", wx.OK | wx.ICON_ERROR)
 
