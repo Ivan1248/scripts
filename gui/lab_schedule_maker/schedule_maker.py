@@ -63,21 +63,84 @@ EVENT_RE = re.compile(
 )
 
 def parse_schedule_block(text):
+    """Parse the schedule text and return (events, errors).
+
+    events: list of parsed event dicts
+    errors: list of (line_no, message) tuples describing parse problems
+    """
     matches = list(EVENT_RE.finditer(text))
     events = []
+    errors = []
+    if not matches:
+        # Try to detect common problems: empty or bad-format lines
+        lines = [l for l in text.splitlines() if l.strip()]
+        if lines:
+            for ln, line in enumerate(lines, start=1):
+                if not EVENT_RE.match(line):
+                    errors.append((ln, "Unrecognized line format: " + line))
+        return events, errors
+
+    # We'll map character offsets to line numbers for better error messages
+    line_starts = [0]
+    for i, ch in enumerate(text):
+        if ch == "\n":
+            line_starts.append(i + 1)
+
+    def charpos_to_lineno(pos):
+        # Binary search would be overkill; linear scan is fine for small inputs
+        ln = 1
+        for start in line_starts:
+            if pos >= start:
+                ln += 1
+            else:
+                break
+        return max(1, ln - 1)
+
     for i, m in enumerate(matches):
-        start_span = m.end()
-        end_span = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        names_block = text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
-        parts = [p.strip() for p in re.split(r",|\t{1,}| {2,}", names_block) if p.strip()]
-        events.append({
-            "date": m.group("date"),
-            "start": m.group("start"),
-            "end": m.group("end"),
-            "room": m.group("room"),
-            "names": parts
-        })
-    return events
+        try:
+            start_span = m.end()
+            end_span = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            names_block = text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
+            parts = [p.strip() for p in re.split(r",|\t{1,}| {2,}", names_block) if p.strip()]
+            ev = {
+                "date": m.group("date"),
+                "start": m.group("start"),
+                "end": m.group("end"),
+                "room": m.group("room"),
+                "names": parts,
+                "_match_span": (m.start(), m.end())
+            }
+            # Validate datetime fields quickly
+            try:
+                datetime.strptime(f"{ev['date']} {ev['start']}", "%Y-%m-%d %H:%M")
+                datetime.strptime(f"{ev['date']} {ev['end']}", "%Y-%m-%d %H:%M")
+            except Exception as dt_e:
+                lineno = charpos_to_lineno(m.start())
+                errors.append((lineno, f"Invalid date/time: {dt_e}"))
+            events.append(ev)
+        except Exception as e:
+            lineno = charpos_to_lineno(m.start())
+            errors.append((lineno, f"Failed to parse event at pos {m.start()}: {e}"))
+
+    # Detect standalone date tokens that don't correspond to a full EVENT_RE match
+    # (these indicate incomplete/malformed event lines such as missing start/end/room)
+    match_starts = {m.start() for m in matches}
+    for dm in re.finditer(r"\d{4}-\d{2}-\d{2}", text):
+        if dm.start() not in match_starts:
+            lineno = charpos_to_lineno(dm.start())
+            # Extract the full physical line for context
+            line_start = text.rfind("\n", 0, dm.start())
+            line_end = text.find("\n", dm.start())
+            if line_start == -1:
+                line_start = 0
+            else:
+                line_start += 1
+            if line_end == -1:
+                line_end = len(text)
+            excerpt = text[line_start:line_end].strip()
+            errors.append((lineno, "Incomplete or malformed event: " + excerpt))
+
+    return events, errors
 
 # ----------------------------------------
 # iCalendar generation
@@ -177,6 +240,26 @@ class SchedulerApp(tk.Tk):
             self.tree.column(c, width=100, anchor="w")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+        ttk.Label(left, text="Parsing messages:").pack(anchor="w", pady=(8, 0))
+        msg_frame = ttk.Frame(left)
+        msg_frame.pack(fill=tk.BOTH, expand=False)
+        self.error_text = tk.Text(msg_frame, height=6, wrap="word", foreground=TEXT_COLOR["error"] )
+        self.error_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        msg_ysb = ttk.Scrollbar(msg_frame, command=self.error_text.yview)
+        msg_ysb.pack(side=tk.LEFT, fill=tk.Y)
+        self.error_text.configure(yscrollcommand=msg_ysb.set)
+        btn_frame = ttk.Frame(msg_frame)
+        btn_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(6,0))
+        ttk.Button(btn_frame, text="Copy", command=lambda: self._copy_error_text(None)).pack(anchor="n")
+        # Bind copy/select shortcuts so users can copy messages even when widget is read-only
+        # We'll set the widget to DISABLED after populating it; these bindings still work.
+        self.error_text.bind("<Control-c>", lambda e: self._copy_error_text(e))
+        self.error_text.bind("<Control-C>", lambda e: self._copy_error_text(e))
+        self.error_text.bind("<Control-Insert>", lambda e: self._copy_error_text(e))
+        # Select all (ensure handler returns 'break')
+        self.error_text.bind("<Control-a>", lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"))
+        self.error_text.bind("<Control-A>", lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"))
+
         # ---- Calendar ----
         ttk.Label(right, text="Calendar view:").pack(anchor="w")
         self.canvas = tk.Canvas(right, bg=CALENDAR_BG_COLOR)
@@ -205,12 +288,24 @@ class SchedulerApp(tk.Tk):
                 self.draw_calendar()
                 return
                 
-            self.events = parse_schedule_block(raw)
+            parsed_result = parse_schedule_block(raw)
+            # parse_schedule_block now returns (events, errors)
+            if isinstance(parsed_result, tuple) and len(parsed_result) == 2:
+                events, errors = parsed_result
+            else:
+                events, errors = parsed_result, []
+
+            self.events = events
+            # If no events at all, show helpful hint (also show errors if any)
             if not self.events:
                 self.canvas.delete("all")
-                self.canvas.create_text(20, 20, anchor="nw", 
-                    text="No events found. Make sure the format is:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ...", 
-                    fill=TEXT_COLOR["hint"])
+                msg = "No events found. Make sure the format is:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ..."
+                if errors:
+                    err_text = "\n\nParse issues:\n" + "\n".join([f"Line {ln}: {m}" for ln, m in errors])
+                    msg = msg + err_text
+                    self.canvas.create_text(20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["error"])
+                else:
+                    self.canvas.create_text(20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["hint"])
                 self.by_person = {}
                 return
         except Exception as e:
@@ -239,7 +334,43 @@ class SchedulerApp(tk.Tk):
         for ev in self.events:
             self.tree.insert("", "end", values=(ev["date"], ev["start"], ev["end"], ev["room"], ", ".join(ev["names"])))
 
+        # Draw calendar and then populate the parse messages box (non-blocking)
         self.draw_calendar()
+
+        # Populate error_text with parse issues (if any)
+        try:
+            self.error_text.configure(state=tk.NORMAL)
+            self.error_text.delete("1.0", tk.END)
+            if errors:
+                err_lines = [f"Line {ln}: {msg}" for ln, msg in errors]
+                display = "Parsing errors:\n" + "\n".join(err_lines)
+                self.error_text.insert("1.0", display)
+            else:
+                self.error_text.insert("1.0", "No parsing errors detected.")
+            # Make the box read-only but keep selection/copy bindings
+            self.error_text.configure(state=tk.DISABLED)
+        except Exception:
+            # Fallback
+            pass
+
+    def _copy_error_text(self, event):
+        """Copy selected text from the parsing messages box to the clipboard.
+
+        If there's no selection, copy the full content.
+        Returns "break" to stop default handling.
+        """
+        try:
+            txt = self.error_text.get("sel.first", "sel.last")
+        except tk.TclError:
+            txt = self.error_text.get("1.0", "end").strip()
+        if txt:
+            try:
+                self.clipboard_clear()
+                self.clipboard_append(txt)
+            except Exception:
+                # ignore clipboard errors
+                pass
+        return "break"
 
     def on_export_one(self):
         if not self.by_person:
@@ -262,15 +393,30 @@ class SchedulerApp(tk.Tk):
         zip_path = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
         if not zip_path:
             return
-        tmp = os.path.join(os.getcwd(), "_ics_tmp")
-        os.makedirs(tmp, exist_ok=True)
-        paths = [create_ics_for_person(p, evs, self.title_var.get(), tmp) for p, evs in self.by_person.items()]
-        with zipfile.ZipFile(zip_path, "w") as zf:
-            for p in paths:
-                zf.write(p, arcname=os.path.basename(p))
-        for p in paths: os.remove(p)
-        os.rmdir(tmp)
-        messagebox.showinfo("Done", f"Exported {len(paths)} calendars into {zip_path}")
+        try:
+            tmp = os.path.join(os.getcwd(), "_ics_tmp")
+            os.makedirs(tmp, exist_ok=True)
+            paths = [create_ics_for_person(p, evs, self.title_var.get(), tmp) for p, evs in self.by_person.items()]
+            try:
+                with zipfile.ZipFile(zip_path, "w") as zf:
+                    for p in paths:
+                        zf.write(p, arcname=os.path.basename(p))
+                messagebox.showinfo("Done", f"Exported {len(paths)} calendars into {zip_path}")
+            except (PermissionError, OSError) as e:
+                messagebox.showerror("Export Error", f"Could not create zip file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.")
+            finally:
+                # Clean up temp files even if zip creation fails
+                for p in paths: 
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
+                try:
+                    os.rmdir(tmp)
+                except OSError:
+                    pass
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export calendars:\n{str(e)}")
 
     # ---------------- Calendar rendering ----------------
 
