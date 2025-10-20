@@ -12,7 +12,9 @@ Made using ChatGPT-5 and GitHub Copilot "Auto".
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from datetime import datetime, timedelta
-import re, os, zipfile
+import os
+import re
+import zipfile
 from collections import OrderedDict
 from matplotlib import cm, colors
 
@@ -63,21 +65,84 @@ EVENT_RE = re.compile(
 )
 
 def parse_schedule_block(text):
+    """Parse the schedule text and return (events, errors).
+
+    events: list of parsed event dicts
+    errors: list of (line_no, message) tuples describing parse problems
+    """
     matches = list(EVENT_RE.finditer(text))
     events = []
+    errors = []
+    if not matches:
+        # Try to detect common problems: empty or bad-format lines
+        lines = [line for line in text.splitlines() if line.strip()]
+        if lines:
+            for ln, line in enumerate(lines, start=1):
+                if not EVENT_RE.match(line):
+                    errors.append((ln, "Unrecognized line format: " + line))
+        return events, errors
+
+    # We'll map character offsets to line numbers for better error messages
+    line_starts = [0]
+    for i, ch in enumerate(text):
+        if ch == "\n":
+            line_starts.append(i + 1)
+
+    def charpos_to_lineno(pos):
+        # Binary search would be overkill; linear scan is fine for small inputs
+        ln = 1
+        for start in line_starts:
+            if pos >= start:
+                ln += 1
+            else:
+                break
+        return max(1, ln - 1)
+
     for i, m in enumerate(matches):
-        start_span = m.end()
-        end_span = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        names_block = text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
-        parts = [p.strip() for p in re.split(r",|\t{1,}| {2,}", names_block) if p.strip()]
-        events.append({
-            "date": m.group("date"),
-            "start": m.group("start"),
-            "end": m.group("end"),
-            "room": m.group("room"),
-            "names": parts
-        })
-    return events
+        try:
+            start_span = m.end()
+            end_span = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            names_block = text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
+            parts = [p.strip() for p in re.split(r",|\t{1,}| {2,}", names_block) if p.strip()]
+            ev = {
+                "date": m.group("date"),
+                "start": m.group("start"),
+                "end": m.group("end"),
+                "room": m.group("room"),
+                "names": parts,
+                "_match_span": (m.start(), m.end())
+            }
+            # Validate datetime fields quickly
+            try:
+                datetime.strptime(f"{ev['date']} {ev['start']}", "%Y-%m-%d %H:%M")
+                datetime.strptime(f"{ev['date']} {ev['end']}", "%Y-%m-%d %H:%M")
+            except Exception as dt_e:
+                lineno = charpos_to_lineno(m.start())
+                errors.append((lineno, f"Invalid date/time: {dt_e}"))
+            events.append(ev)
+        except Exception as e:
+            lineno = charpos_to_lineno(m.start())
+            errors.append((lineno, f"Failed to parse event at pos {m.start()}: {e}"))
+
+    # Detect standalone date tokens that don't correspond to a full EVENT_RE match
+    # (these indicate incomplete/malformed event lines such as missing start/end/room)
+    match_starts = {m.start() for m in matches}
+    for dm in re.finditer(r"\d{4}-\d{2}-\d{2}", text):
+        if dm.start() not in match_starts:
+            lineno = charpos_to_lineno(dm.start())
+            # Extract the full physical line for context
+            line_start = text.rfind("\n", 0, dm.start())
+            line_end = text.find("\n", dm.start())
+            if line_start == -1:
+                line_start = 0
+            else:
+                line_start += 1
+            if line_end == -1:
+                line_end = len(text)
+            excerpt = text[line_start:line_end].strip()
+            errors.append((lineno, "Incomplete or malformed event: " + excerpt))
+
+    return events, errors
 
 # ----------------------------------------
 # iCalendar generation
@@ -85,7 +150,13 @@ def parse_schedule_block(text):
 
 def dt_to_ical(dt): return dt.strftime("%Y%m%dT%H%M%S")
 
-def create_ics_for_person(person_name, events, title, out_folder):
+def create_ics_for_person(person_name, events, title, out_path=None):
+    """Create an .ics file for a person.
+
+    If out_path is provided, the file will be written directly to that path.
+    Otherwise it's written to the current working directory as
+    <Person>.ics. Returns the full path to the written file.
+    """
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//DL-lab1 Scheduler//EN"]
     for idx, ev in enumerate(events):
         start_dt = datetime.strptime(f"{ev['date']} {ev['start']}", "%Y-%m-%d %H:%M")
@@ -103,9 +174,18 @@ def create_ics_for_person(person_name, events, title, out_folder):
             "END:VEVENT"
         ]
     lines.append("END:VCALENDAR")
-    out_path = os.path.join(out_folder, f"{person_name.replace(' ', '_')}.ics")
-    with open(out_path, "w", encoding="utf-8") as f: f.write("\n".join(lines))
-    return out_path
+
+    # Decide where to write the file
+    out_path_final = out_path if out_path else os.path.join(os.getcwd(), f"{person_name.replace(' ', '_')}.ics")
+
+    # Ensure containing directory exists for an explicit out_path
+    parent = os.path.dirname(out_path_final)
+    if parent and not os.path.exists(parent):
+        os.makedirs(parent, exist_ok=True)
+
+    with open(out_path_final, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return out_path_final
 
 # ----------------------------------------
 # Color utilities (deterministic, order-based)
@@ -139,11 +219,47 @@ class SchedulerApp(tk.Tk):
         paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
 
-        left = ttk.Frame(paned, padding=6)
-        right = ttk.Frame(paned, padding=6)
-        paned.add(left, weight=1)
-        paned.add(right, weight=2)
-        self.after(100, lambda: paned.sashpos(0, int(self.winfo_width() * PANE_SPLIT_RATIO)))
+        left = ttk.Frame(paned)
+        right = ttk.Frame(paned)
+        paned.add(left)
+        paned.add(right)
+        paned.pane(left, weight=3)
+        paned.pane(right, weight=2)
+
+        min_left_width = 460
+        min_right_width = 200
+
+        def sash_limits(total_width):
+            max_left = max(0, total_width - min_right_width)
+            min_left = min(min_left_width, max_left)
+            return min_left, max_left
+
+        def enforce_sash_limits():
+            total = paned.winfo_width()
+            if total <= 1:
+                return
+            min_pos, max_pos = sash_limits(total)
+            try:
+                current = paned.sashpos(0)
+            except tk.TclError:
+                current = min_pos
+            if current < min_pos:
+                paned.sashpos(0, min_pos)
+            elif current > max_pos:
+                paned.sashpos(0, max_pos)
+
+        def set_initial_sash():
+            total = paned.winfo_width()
+            if total <= 1:
+                self.after(20, set_initial_sash)
+                return
+            min_pos, max_pos = sash_limits(total)
+            desired = int(total * PANE_SPLIT_RATIO)
+            paned.sashpos(0, min(max(desired, min_pos), max_pos))
+            enforce_sash_limits()
+
+        self.after(20, set_initial_sash)
+        paned.bind("<Configure>", lambda e: enforce_sash_limits())
 
         # ---- Controls ----
         top = ttk.Frame(left)
@@ -177,6 +293,26 @@ class SchedulerApp(tk.Tk):
             self.tree.column(c, width=100, anchor="w")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+        ttk.Label(left, text="Parsing messages:").pack(anchor="w", pady=(8, 0))
+        msg_frame = ttk.Frame(left)
+        msg_frame.pack(fill=tk.BOTH, expand=False)
+        self.error_text = tk.Text(msg_frame, height=6, wrap="word", foreground=TEXT_COLOR["error"] )
+        self.error_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        msg_ysb = ttk.Scrollbar(msg_frame, command=self.error_text.yview)
+        msg_ysb.pack(side=tk.LEFT, fill=tk.Y)
+        self.error_text.configure(yscrollcommand=msg_ysb.set)
+        btn_frame = ttk.Frame(msg_frame)
+        btn_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(6,0))
+        ttk.Button(btn_frame, text="Copy", command=lambda: self._copy_error_text(None)).pack(anchor="n")
+        # Bind copy/select shortcuts so users can copy messages even when widget is read-only
+        # We'll set the widget to DISABLED after populating it; these bindings still work.
+        self.error_text.bind("<Control-c>", lambda e: self._copy_error_text(e))
+        self.error_text.bind("<Control-C>", lambda e: self._copy_error_text(e))
+        self.error_text.bind("<Control-Insert>", lambda e: self._copy_error_text(e))
+        # Select all (ensure handler returns 'break')
+        self.error_text.bind("<Control-a>", lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"))
+        self.error_text.bind("<Control-A>", lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"))
+
         # ---- Calendar ----
         ttk.Label(right, text="Calendar view:").pack(anchor="w")
         self.canvas = tk.Canvas(right, bg=CALENDAR_BG_COLOR)
@@ -205,12 +341,24 @@ class SchedulerApp(tk.Tk):
                 self.draw_calendar()
                 return
                 
-            self.events = parse_schedule_block(raw)
+            parsed_result = parse_schedule_block(raw)
+            # parse_schedule_block now returns (events, errors)
+            if isinstance(parsed_result, tuple) and len(parsed_result) == 2:
+                events, errors = parsed_result
+            else:
+                events, errors = parsed_result, []
+
+            self.events = events
+            # If no events at all, show helpful hint (also show errors if any)
             if not self.events:
                 self.canvas.delete("all")
-                self.canvas.create_text(20, 20, anchor="nw", 
-                    text="No events found. Make sure the format is:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ...", 
-                    fill=TEXT_COLOR["hint"])
+                msg = "No events found. Make sure the format is:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ..."
+                if errors:
+                    err_text = "\n\nParse issues:\n" + "\n".join([f"Line {ln}: {m}" for ln, m in errors])
+                    msg = msg + err_text
+                    self.canvas.create_text(20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["error"])
+                else:
+                    self.canvas.create_text(20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["hint"])
                 self.by_person = {}
                 return
         except Exception as e:
@@ -239,7 +387,43 @@ class SchedulerApp(tk.Tk):
         for ev in self.events:
             self.tree.insert("", "end", values=(ev["date"], ev["start"], ev["end"], ev["room"], ", ".join(ev["names"])))
 
+        # Draw calendar and then populate the parse messages box (non-blocking)
         self.draw_calendar()
+
+        # Populate error_text with parse issues (if any)
+        try:
+            self.error_text.configure(state=tk.NORMAL)
+            self.error_text.delete("1.0", tk.END)
+            if errors:
+                err_lines = [f"Line {ln}: {msg}" for ln, msg in errors]
+                display = "Parsing errors:\n" + "\n".join(err_lines)
+                self.error_text.insert("1.0", display)
+            else:
+                self.error_text.insert("1.0", "No parsing errors detected.")
+            # Make the box read-only but keep selection/copy bindings
+            self.error_text.configure(state=tk.DISABLED)
+        except Exception:
+            # Fallback
+            pass
+
+    def _copy_error_text(self, event):
+        """Copy selected text from the parsing messages box to the clipboard.
+
+        If there's no selection, copy the full content.
+        Returns "break" to stop default handling.
+        """
+        try:
+            txt = self.error_text.get("sel.first", "sel.last")
+        except tk.TclError:
+            txt = self.error_text.get("1.0", "end").strip()
+        if txt:
+            try:
+                self.clipboard_clear()
+                self.clipboard_append(txt)
+            except Exception:
+                # ignore clipboard errors
+                pass
+        return "break"
 
     def on_export_one(self):
         if not self.by_person:
@@ -249,11 +433,29 @@ class SchedulerApp(tk.Tk):
         if person == "(All)":
             messagebox.showinfo("Select person", "Please select a person to export.")
             return
-        folder = filedialog.askdirectory(title="Select output folder")
-        if not folder:
+        # Prefer a Save-As dialog so the user gets a prefilled filename and can
+        # choose exactly where to save the single .ics file.
+        # Include the title in the default filename (e.g. DL-lab1_First_Last.ics)
+        safe_title = self.title_var.get().strip().replace(' ', '_')
+        default_name = f"{safe_title}_{person.replace(' ', '_')}.ics"
+        save_path = filedialog.asksaveasfilename(defaultextension=".ics",
+                                                 filetypes=[("iCalendar", "*.ics")],
+                                                 initialfile=default_name,
+                                                 title=f"Export calendar for {person}")
+        if not save_path:
             return
-        create_ics_for_person(person, self.by_person[person], self.title_var.get(), folder)
-        messagebox.showinfo("Done", f"Exported calendar for {person} to {folder}")
+        # If the file already exists, ask user to confirm overwrite
+        if os.path.exists(save_path):
+            res = messagebox.askyesno("Overwrite?", f"The file {save_path} already exists. Overwrite?")
+            if not res:
+                return
+        try:
+            out = create_ics_for_person(person, self.by_person[person], self.title_var.get(), out_path=save_path)
+            messagebox.showinfo("Done", f"Exported calendar for {person} to {out}")
+        except (PermissionError, OSError) as e:
+            messagebox.showerror("Export Error", f"Could not write file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.")
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export calendar:\n{str(e)}")
 
     def on_export_zip(self):
         if not self.by_person:
@@ -262,15 +464,30 @@ class SchedulerApp(tk.Tk):
         zip_path = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
         if not zip_path:
             return
-        tmp = os.path.join(os.getcwd(), "_ics_tmp")
-        os.makedirs(tmp, exist_ok=True)
-        paths = [create_ics_for_person(p, evs, self.title_var.get(), tmp) for p, evs in self.by_person.items()]
-        with zipfile.ZipFile(zip_path, "w") as zf:
-            for p in paths:
-                zf.write(p, arcname=os.path.basename(p))
-        for p in paths: os.remove(p)
-        os.rmdir(tmp)
-        messagebox.showinfo("Done", f"Exported {len(paths)} calendars into {zip_path}")
+        try:
+            tmp = os.path.join(os.getcwd(), "_ics_tmp")
+            os.makedirs(tmp, exist_ok=True)
+            paths = [create_ics_for_person(p, evs, self.title_var.get(), tmp) for p, evs in self.by_person.items()]
+            try:
+                with zipfile.ZipFile(zip_path, "w") as zf:
+                    for p in paths:
+                        zf.write(p, arcname=os.path.basename(p))
+                messagebox.showinfo("Done", f"Exported {len(paths)} calendars into {zip_path}")
+            except (PermissionError, OSError) as e:
+                messagebox.showerror("Export Error", f"Could not create zip file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.")
+            finally:
+                # Clean up temp files even if zip creation fails
+                for p in paths: 
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
+                try:
+                    os.rmdir(tmp)
+                except OSError:
+                    pass
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export calendars:\n{str(e)}")
 
     # ---------------- Calendar rendering ----------------
 
@@ -340,9 +557,8 @@ class SchedulerApp(tk.Tk):
                     y = y0 + 2
                     
                     # Start text placement with padding from top
-                    event_height = y1 - y0
                     y = y0 + 2
-                    
+
                     # Show title and room at the top
                     title_text = cv.create_text(x0 + 3, y, anchor="nw", text=self.title_var.get(), 
                                             fill=TEXT_COLOR["room"], font=TITLE_FONT)
