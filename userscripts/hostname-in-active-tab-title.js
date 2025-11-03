@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name        Hostname in active tab title
-// @namespace   Userscripts
+// @namespace   https://github.com/Ivan1248
 // @match       *://*/*
 // @grant       none
 // @version     1.0

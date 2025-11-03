@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Ferko schedule auto-fill
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/Ivan1248
 // @version      1.0
 // @description  Automatically fill schedule entries in Ferko
 // @author       Past light cone
@@ -268,7 +268,7 @@
         container.id = 'scheduleAutoFillUI';
         container.style.cssText = `
             position: fixed;
-            top: 80px;
+            top: 60px;
             right: 10px;
             background: white;
             border: 2px solid #333;
