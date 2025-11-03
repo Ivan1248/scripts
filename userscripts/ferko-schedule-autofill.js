@@ -104,6 +104,7 @@
 
         return false;
     }
+
     function findPersonInDialog(name) {
         const dialog = document.getElementById('editorDialog');
         if (!dialog) return null;
@@ -267,22 +268,23 @@
         container.id = 'scheduleAutoFillUI';
         container.style.cssText = `
             position: fixed;
-            top: 10px;
+            top: 80px;
             right: 10px;
             background: white;
             border: 2px solid #333;
-            border-radius: 8px;
-            padding: 15px;
+            padding: 10px;
             z-index: 10000;
             max-width: 400px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-sizing: border-box;
         `;
 
         container.innerHTML = `
-            <h3 style="margin: 0 0 10px 0;">Schedule Auto-Fill</h3>
-            <textarea id="scheduleInput" placeholder="Paste schedule here..." style="width: 100%; height: 150px; margin-bottom: 10px; font-family: monospace; font-size: 11px;"></textarea>
-            <button id="processBtn" style="width: 100%; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Process Schedule</button>
-            <button id="toggleBtn" style="width: 100%; padding: 6px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 5px;">Minimize</button>
+            <h3 style="margin: 0 0 5px 0;">Schedule auto-fill</h3>
+            <textarea id="scheduleInput" placeholder="Paste schedule here..." style="width: 100%; height: 150px; margin-bottom: 5px; font-family: monospace; font-size: 11px; box-sizing: border-box;"></textarea>
+            <div style="display: flex; gap: 5px;">
+                <button id="processBtn" style="flex: 1; padding: 5px; background: #4CAF50; color: white; border: none; border-radius: 0px; font-weight: bold;">Process schedule</button>
+                <button id="toggleBtn" style="flex: 0 0 auto; padding: 5px 15px; background: #666; color: white; border: none; border-radius: 0px;">Minimize</button>
+            </div>
         `;
 
         document.body.appendChild(container);
