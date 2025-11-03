@@ -57,10 +57,7 @@ PARSE_DELAY_MS = 1000
 # ----------------------------------------
 
 EVENT_RE = re.compile(
-    r"(?P<date>\d{4}-\d{2}-\d{2})\s+"
-    r"(?P<start>\d{1,2}:\d{2})\s+"
-    r"(?P<end>\d{1,2}:\d{2})\s+"
-    r"(?P<room>[A-Za-z0-9\-_]+)",
+    r"(?P<date>\d{4}-\d{2}-\d{2})\|(?P<start>\d{1,2}:\d{2})\|(?P<end>\d{1,2}:\d{2})\|(?P<room>[^\|\t\r\n]+)",
     flags=re.UNICODE,
 )
 
@@ -102,8 +99,9 @@ def parse_schedule_block(text):
         try:
             start_span = m.end()
             end_span = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            # Names may be separated by commas, tabs or multiple spaces.
             names_block = text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
-            parts = [p.strip() for p in re.split(r",|\t{1,}| {2,}", names_block) if p.strip()]
+            parts = [p.strip() for p in re.split(r",|\t+| {2,}", names_block) if p.strip()]
             ev = {
                 "date": m.group("date"),
                 "start": m.group("start"),
@@ -526,8 +524,9 @@ class SchedulerApp(tk.Tk):
             cv.create_rectangle(x0, 0, x0 + col_w, TOP_MARGIN, fill=HEADER_BG_COLOR, outline=HEADER_BORDER_COLOR)
             cv.create_text(x0 + 4, TOP_MARGIN / 2, anchor="w", text=d.strftime("%a %Y-%m-%d"), font=DATE_FONT)
         for j, hr in enumerate(hours):
+            # Align hour labels to the top of each hour row (right-aligned)
             y = TOP_MARGIN + j * row_h
-            cv.create_text(LEFT_MARGIN - 5, y + row_h / 2, anchor="e", text=f"{hr:02d}:00", font=HOUR_FONT)
+            cv.create_text(LEFT_MARGIN - 6, y + 2, anchor="ne", text=f"{hr:02d}:00", font=HOUR_FONT)
             for i in range(len(all_days)):
                 x0 = LEFT_MARGIN + i * col_w
                 cv.create_rectangle(x0, y, x0 + col_w, y + row_h, outline=GRID_LINE_COLOR)
