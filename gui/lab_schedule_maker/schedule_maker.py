@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
-"""
-DL-lab1 Scheduler GUI v2
-- Deterministic color assignment (by order of appearance)
-- Automatic parsing on data edit
-- Uses Matplotlib tab10 color palette
-- Supports multi-event overlap, full-day calendar display
+# Made using ChatGPT-5 and GitHub Copilot "Auto".
 
-Made using ChatGPT-5 and GitHub Copilot "Auto".
-"""
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -31,12 +24,7 @@ CALENDAR_BG_COLOR = "white"
 HEADER_BG_COLOR = "#f0f0f0"
 HEADER_BORDER_COLOR = "#ccc"
 GRID_LINE_COLOR = "#eee"
-TEXT_COLOR = {
-    "normal": "#000000",
-    "room": "#000000",
-    "error": "red",
-    "hint": "gray"
-}
+TEXT_COLOR = {"normal": "#000000", "room": "#000000", "error": "red", "hint": "gray"}
 
 # Layout settings
 LEFT_MARGIN = 60
@@ -60,6 +48,7 @@ EVENT_RE = re.compile(
     r"(?P<date>\d{4}-\d{2}-\d{2})\|(?P<start>\d{1,2}:\d{2})\|(?P<end>\d{1,2}:\d{2})\|(?P<room>[^\|\t\r\n]+)",
     flags=re.UNICODE,
 )
+
 
 def parse_schedule_block(text):
     """Parse the schedule text and return (events, errors).
@@ -100,15 +89,19 @@ def parse_schedule_block(text):
             start_span = m.end()
             end_span = matches[i + 1].start() if i + 1 < len(matches) else len(text)
             # Names may be separated by commas, tabs or multiple spaces.
-            names_block = text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
-            parts = [p.strip() for p in re.split(r",|\t+| {2,}", names_block) if p.strip()]
+            names_block = (
+                text[start_span:end_span].strip().replace("\r", " ").replace("\n", " ")
+            )
+            parts = [
+                p.strip() for p in re.split(r",|\t+| {2,}", names_block) if p.strip()
+            ]
             ev = {
                 "date": m.group("date"),
                 "start": m.group("start"),
                 "end": m.group("end"),
                 "room": m.group("room"),
                 "names": parts,
-                "_match_span": (m.start(), m.end())
+                "_match_span": (m.start(), m.end()),
             }
             # Validate datetime fields quickly
             try:
@@ -142,11 +135,15 @@ def parse_schedule_block(text):
 
     return events, errors
 
+
 # ----------------------------------------
 # iCalendar generation
 # ----------------------------------------
 
-def dt_to_ical(dt): return dt.strftime("%Y%m%dT%H%M%S")
+
+def dt_to_ical(dt):
+    return dt.strftime("%Y%m%dT%H%M%S")
+
 
 def create_ics_for_person(person_name, events, title, out_path=None):
     """Create an .ics file for a person.
@@ -169,12 +166,16 @@ def create_ics_for_person(person_name, events, title, out_path=None):
             f"SUMMARY:{title}",
             f"LOCATION:{ev['room']}",
             f"DESCRIPTION:Participants: {', '.join(ev.get('names', []))}",
-            "END:VEVENT"
+            "END:VEVENT",
         ]
     lines.append("END:VCALENDAR")
 
     # Decide where to write the file
-    out_path_final = out_path if out_path else os.path.join(os.getcwd(), f"{person_name.replace(' ', '_')}.ics")
+    out_path_final = (
+        out_path
+        if out_path
+        else os.path.join(os.getcwd(), f"{person_name.replace(' ', '_')}.ics")
+    )
 
     # Ensure containing directory exists for an explicit out_path
     parent = os.path.dirname(out_path_final)
@@ -185,11 +186,13 @@ def create_ics_for_person(person_name, events, title, out_path=None):
         f.write("\n".join(lines))
     return out_path_final
 
+
 # ----------------------------------------
 # Color utilities (deterministic, order-based)
 # ----------------------------------------
 
 PALETTE = [colors.to_hex(c) for c in cm.Pastel1.colors]
+
 
 class ColorManager:
     def __init__(self):
@@ -201,9 +204,11 @@ class ColorManager:
             self.room_colors[room] = PALETTE[idx]
         return self.room_colors[room]
 
+
 # ----------------------------------------
 # GUI
 # ----------------------------------------
+
 
 class SchedulerApp(tk.Tk):
     def __init__(self):
@@ -265,8 +270,12 @@ class SchedulerApp(tk.Tk):
         ttk.Label(top, text="Title:").pack(side=tk.LEFT)
         self.title_var = tk.StringVar(value="DL-lab1")
         ttk.Entry(top, textvariable=self.title_var, width=30).pack(side=tk.LEFT, padx=6)
-        ttk.Button(top, text="Export selected (.ics)", command=self.on_export_one).pack(side=tk.LEFT, padx=4)
-        ttk.Button(top, text="Export all (.zip)", command=self.on_export_zip).pack(side=tk.LEFT, padx=4)
+        ttk.Button(top, text="Export selected (.ics)", command=self.on_export_one).pack(
+            side=tk.LEFT, padx=4
+        )
+        ttk.Button(top, text="Export all (.zip)", command=self.on_export_zip).pack(
+            side=tk.LEFT, padx=4
+        )
 
         ttk.Label(left, text="Data (paste schedule):").pack(anchor="w", pady=(8, 0))
         text_frame = ttk.Frame(left)
@@ -280,12 +289,19 @@ class SchedulerApp(tk.Tk):
 
         ttk.Label(left, text="Filter by person:").pack(anchor="w", pady=(8, 0))
         self.person_var = tk.StringVar(value="(All)")
-        self.person_combo = ttk.Combobox(left, textvariable=self.person_var, state="readonly")
+        self.person_combo = ttk.Combobox(
+            left, textvariable=self.person_var, state="readonly"
+        )
         self.person_combo.pack(fill=tk.X)
         self.person_combo.bind("<<ComboboxSelected>>", lambda e: self.draw_calendar())
 
         ttk.Label(left, text="Parsed events:").pack(anchor="w", pady=(8, 0))
-        self.tree = ttk.Treeview(left, columns=("date", "start", "end", "room", "names"), show="headings", height=TREEVIEW_HEIGHT)
+        self.tree = ttk.Treeview(
+            left,
+            columns=("date", "start", "end", "room", "names"),
+            show="headings",
+            height=TREEVIEW_HEIGHT,
+        )
         for c in ("date", "start", "end", "room", "names"):
             self.tree.heading(c, text=c)
             self.tree.column(c, width=100, anchor="w")
@@ -294,22 +310,32 @@ class SchedulerApp(tk.Tk):
         ttk.Label(left, text="Parsing messages:").pack(anchor="w", pady=(8, 0))
         msg_frame = ttk.Frame(left)
         msg_frame.pack(fill=tk.BOTH, expand=False)
-        self.error_text = tk.Text(msg_frame, height=6, wrap="word", foreground=TEXT_COLOR["error"] )
+        self.error_text = tk.Text(
+            msg_frame, height=6, wrap="word", foreground=TEXT_COLOR["error"]
+        )
         self.error_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         msg_ysb = ttk.Scrollbar(msg_frame, command=self.error_text.yview)
         msg_ysb.pack(side=tk.LEFT, fill=tk.Y)
         self.error_text.configure(yscrollcommand=msg_ysb.set)
         btn_frame = ttk.Frame(msg_frame)
-        btn_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(6,0))
-        ttk.Button(btn_frame, text="Copy", command=lambda: self._copy_error_text(None)).pack(anchor="n")
+        btn_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(6, 0))
+        ttk.Button(
+            btn_frame, text="Copy", command=lambda: self._copy_error_text(None)
+        ).pack(anchor="n")
         # Bind copy/select shortcuts so users can copy messages even when widget is read-only
         # We'll set the widget to DISABLED after populating it; these bindings still work.
         self.error_text.bind("<Control-c>", lambda e: self._copy_error_text(e))
         self.error_text.bind("<Control-C>", lambda e: self._copy_error_text(e))
         self.error_text.bind("<Control-Insert>", lambda e: self._copy_error_text(e))
         # Select all (ensure handler returns 'break')
-        self.error_text.bind("<Control-a>", lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"))
-        self.error_text.bind("<Control-A>", lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"))
+        self.error_text.bind(
+            "<Control-a>",
+            lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"),
+        )
+        self.error_text.bind(
+            "<Control-A>",
+            lambda e: (self.error_text.tag_add("sel", "1.0", "end") or "break"),
+        )
 
         # ---- Calendar ----
         ttk.Label(right, text="Calendar view:").pack(anchor="w")
@@ -338,7 +364,7 @@ class SchedulerApp(tk.Tk):
                 self.by_person = {}
                 self.draw_calendar()
                 return
-                
+
             parsed_result = parse_schedule_block(raw)
             # parse_schedule_block now returns (events, errors)
             if isinstance(parsed_result, tuple) and len(parsed_result) == 2:
@@ -352,18 +378,28 @@ class SchedulerApp(tk.Tk):
                 self.canvas.delete("all")
                 msg = "No events found. Make sure the format is:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ..."
                 if errors:
-                    err_text = "\n\nParse issues:\n" + "\n".join([f"Line {ln}: {m}" for ln, m in errors])
+                    err_text = "\n\nParse issues:\n" + "\n".join(
+                        [f"Line {ln}: {m}" for ln, m in errors]
+                    )
                     msg = msg + err_text
-                    self.canvas.create_text(20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["error"])
+                    self.canvas.create_text(
+                        20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["error"]
+                    )
                 else:
-                    self.canvas.create_text(20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["hint"])
+                    self.canvas.create_text(
+                        20, 20, anchor="nw", text=msg, fill=TEXT_COLOR["hint"]
+                    )
                 self.by_person = {}
                 return
         except Exception as e:
             self.canvas.delete("all")
-            self.canvas.create_text(20, 20, anchor="nw", 
-                text=f"Error parsing schedule:\n{str(e)}\n\nExpected format:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ...", 
-                fill=TEXT_COLOR["error"])
+            self.canvas.create_text(
+                20,
+                20,
+                anchor="nw",
+                text=f"Error parsing schedule:\n{str(e)}\n\nExpected format:\nYYYY-MM-DD HH:MM HH:MM ROOM\nName1, Name2, ...",
+                fill=TEXT_COLOR["error"],
+            )
             self.events = []
             self.by_person = {}
             return
@@ -383,7 +419,17 @@ class SchedulerApp(tk.Tk):
         for i in self.tree.get_children():
             self.tree.delete(i)
         for ev in self.events:
-            self.tree.insert("", "end", values=(ev["date"], ev["start"], ev["end"], ev["room"], ", ".join(ev["names"])))
+            self.tree.insert(
+                "",
+                "end",
+                values=(
+                    ev["date"],
+                    ev["start"],
+                    ev["end"],
+                    ev["room"],
+                    ", ".join(ev["names"]),
+                ),
+            )
 
         # Draw calendar and then populate the parse messages box (non-blocking)
         self.draw_calendar()
@@ -434,48 +480,69 @@ class SchedulerApp(tk.Tk):
         # Prefer a Save-As dialog so the user gets a prefilled filename and can
         # choose exactly where to save the single .ics file.
         # Include the title in the default filename (e.g. DL-lab1_First_Last.ics)
-        safe_title = self.title_var.get().strip().replace(' ', '_')
+        safe_title = self.title_var.get().strip().replace(" ", "_")
         default_name = f"{safe_title}_{person.replace(' ', '_')}.ics"
-        save_path = filedialog.asksaveasfilename(defaultextension=".ics",
-                                                 filetypes=[("iCalendar", "*.ics")],
-                                                 initialfile=default_name,
-                                                 title=f"Export calendar for {person}")
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".ics",
+            filetypes=[("iCalendar", "*.ics")],
+            initialfile=default_name,
+            title=f"Export calendar for {person}",
+        )
         if not save_path:
             return
         # If the file already exists, ask user to confirm overwrite
         if os.path.exists(save_path):
-            res = messagebox.askyesno("Overwrite?", f"The file {save_path} already exists. Overwrite?")
+            res = messagebox.askyesno(
+                "Overwrite?", f"The file {save_path} already exists. Overwrite?"
+            )
             if not res:
                 return
         try:
-            out = create_ics_for_person(person, self.by_person[person], self.title_var.get(), out_path=save_path)
+            out = create_ics_for_person(
+                person, self.by_person[person], self.title_var.get(), out_path=save_path
+            )
             messagebox.showinfo("Done", f"Exported calendar for {person} to {out}")
         except (PermissionError, OSError) as e:
-            messagebox.showerror("Export Error", f"Could not write file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.")
+            messagebox.showerror(
+                "Export Error",
+                f"Could not write file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.",
+            )
         except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export calendar:\n{str(e)}")
+            messagebox.showerror(
+                "Export Error", f"Failed to export calendar:\n{str(e)}"
+            )
 
     def on_export_zip(self):
         if not self.by_person:
             messagebox.showwarning("No data", "Parse data first.")
             return
-        zip_path = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
+        zip_path = filedialog.asksaveasfilename(
+            defaultextension=".zip", filetypes=[("ZIP files", "*.zip")]
+        )
         if not zip_path:
             return
         try:
             tmp = os.path.join(os.getcwd(), "_ics_tmp")
             os.makedirs(tmp, exist_ok=True)
-            paths = [create_ics_for_person(p, evs, self.title_var.get(), tmp) for p, evs in self.by_person.items()]
+            paths = [
+                create_ics_for_person(p, evs, self.title_var.get(), tmp)
+                for p, evs in self.by_person.items()
+            ]
             try:
                 with zipfile.ZipFile(zip_path, "w") as zf:
                     for p in paths:
                         zf.write(p, arcname=os.path.basename(p))
-                messagebox.showinfo("Done", f"Exported {len(paths)} calendars into {zip_path}")
+                messagebox.showinfo(
+                    "Done", f"Exported {len(paths)} calendars into {zip_path}"
+                )
             except (PermissionError, OSError) as e:
-                messagebox.showerror("Export Error", f"Could not create zip file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.")
+                messagebox.showerror(
+                    "Export Error",
+                    f"Could not create zip file:\n{str(e)}\n\nMake sure you have write permissions and the file is not in use.",
+                )
             finally:
                 # Clean up temp files even if zip creation fails
-                for p in paths: 
+                for p in paths:
                     try:
                         os.remove(p)
                     except OSError:
@@ -485,7 +552,9 @@ class SchedulerApp(tk.Tk):
                 except OSError:
                     pass
         except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export calendars:\n{str(e)}")
+            messagebox.showerror(
+                "Export Error", f"Failed to export calendars:\n{str(e)}"
+            )
 
     # ---------------- Calendar rendering ----------------
 
@@ -493,18 +562,29 @@ class SchedulerApp(tk.Tk):
         cv = self.canvas
         cv.delete("all")
         if not self.events:
-            cv.create_text(20, 20, anchor="nw", text="No events parsed.", fill=TEXT_COLOR["hint"])
+            cv.create_text(
+                20, 20, anchor="nw", text="No events parsed.", fill=TEXT_COLOR["hint"]
+            )
             return
 
         person = self.person_var.get()
         evs = self.events if person == "(All)" else self.by_person.get(person, [])
         if not evs:
-            cv.create_text(20, 20, anchor="nw", text="No events for this person.", fill=TEXT_COLOR["hint"])
+            cv.create_text(
+                20,
+                20,
+                anchor="nw",
+                text="No events for this person.",
+                fill=TEXT_COLOR["hint"],
+            )
             return
 
         dates = sorted({datetime.strptime(e["date"], "%Y-%m-%d") for e in evs})
         first_day, last_day = min(dates), max(dates)
-        all_days = [(first_day + timedelta(days=i)) for i in range((last_day - first_day).days + 1)]
+        all_days = [
+            (first_day + timedelta(days=i))
+            for i in range((last_day - first_day).days + 1)
+        ]
 
         min_h, max_h, parsed = 24, 0, []
         for ev in evs:
@@ -521,15 +601,32 @@ class SchedulerApp(tk.Tk):
 
         for i, d in enumerate(all_days):
             x0 = LEFT_MARGIN + i * col_w
-            cv.create_rectangle(x0, 0, x0 + col_w, TOP_MARGIN, fill=HEADER_BG_COLOR, outline=HEADER_BORDER_COLOR)
-            cv.create_text(x0 + 4, TOP_MARGIN / 2, anchor="w", text=d.strftime("%a %Y-%m-%d"), font=DATE_FONT)
+            cv.create_rectangle(
+                x0,
+                0,
+                x0 + col_w,
+                TOP_MARGIN,
+                fill=HEADER_BG_COLOR,
+                outline=HEADER_BORDER_COLOR,
+            )
+            cv.create_text(
+                x0 + 4,
+                TOP_MARGIN / 2,
+                anchor="w",
+                text=d.strftime("%a %Y-%m-%d"),
+                font=DATE_FONT,
+            )
         for j, hr in enumerate(hours):
             # Align hour labels to the top of each hour row (right-aligned)
             y = TOP_MARGIN + j * row_h
-            cv.create_text(LEFT_MARGIN - 6, y + 2, anchor="ne", text=f"{hr:02d}:00", font=HOUR_FONT)
+            cv.create_text(
+                LEFT_MARGIN - 6, y + 2, anchor="ne", text=f"{hr:02d}:00", font=HOUR_FONT
+            )
             for i in range(len(all_days)):
                 x0 = LEFT_MARGIN + i * col_w
-                cv.create_rectangle(x0, y, x0 + col_w, y + row_h, outline=GRID_LINE_COLOR)
+                cv.create_rectangle(
+                    x0, y, x0 + col_w, y + row_h, outline=GRID_LINE_COLOR
+                )
 
         events_by_day = {d.strftime("%Y-%m-%d"): [] for d in all_days}
         for s, e, ev in parsed:
@@ -537,7 +634,9 @@ class SchedulerApp(tk.Tk):
 
         for day_index, d in enumerate(all_days):
             slot_groups = []
-            for s, e, ev in sorted(events_by_day.get(d.strftime("%Y-%m-%d"), []), key=lambda x: x[0]):
+            for s, e, ev in sorted(
+                events_by_day.get(d.strftime("%Y-%m-%d"), []), key=lambda x: x[0]
+            ):
                 for slot in slot_groups:
                     if all(e <= se or s >= ee for se, ee, _ in slot):
                         slot.append((s, e, ev))
@@ -552,32 +651,61 @@ class SchedulerApp(tk.Tk):
                     x0 = LEFT_MARGIN + day_index * col_w + slot_idx * subw
                     x1 = x0 + subw - 2  # 2px right padding
                     bg = self.colors.color_for_room(ev["room"])
-                    cv.create_rectangle(x0, y0, x1, y1 - 2, fill=bg, outline=CALENDAR_BG_COLOR)  # 2px bottom padding
+                    cv.create_rectangle(
+                        x0, y0, x1, y1 - 2, fill=bg, outline=CALENDAR_BG_COLOR
+                    )  # 2px bottom padding
                     y = y0 + 2
-                    
+
                     # Start text placement with padding from top
                     y = y0 + 2
 
                     # Show title and room at the top
-                    title_text = cv.create_text(x0 + 3, y, anchor="nw", text=self.title_var.get(), 
-                                            fill=TEXT_COLOR["room"], font=TITLE_FONT)
+                    title_text = cv.create_text(
+                        x0 + 3,
+                        y,
+                        anchor="nw",
+                        text=self.title_var.get(),
+                        fill=TEXT_COLOR["room"],
+                        font=TITLE_FONT,
+                    )
                     title_bbox = cv.bbox(title_text)
-                    y += title_bbox[3] - title_bbox[1] + 1  # Height of title text + small gap
-                    
-                    room_text = cv.create_text(x0 + 3, y, anchor="nw", text=f"[{ev['room']}]", 
-                                            fill=TEXT_COLOR["room"], font=ROOM_FONT)
+                    y += (
+                        title_bbox[3] - title_bbox[1] + 1
+                    )  # Height of title text + small gap
+
+                    room_text = cv.create_text(
+                        x0 + 3,
+                        y,
+                        anchor="nw",
+                        text=f"[{ev['room']}]",
+                        fill=TEXT_COLOR["room"],
+                        font=ROOM_FONT,
+                    )
                     room_bbox = cv.bbox(room_text)
-                    y += room_bbox[3] - room_bbox[1] + 2  # Height of room text + small gap
-                    
+                    y += (
+                        room_bbox[3] - room_bbox[1] + 2
+                    )  # Height of room text + small gap
+
                     # Show names below room, with wrapping
                     for nm in ev["names"]:
-                        if y + 12 > y1 - 2:  # Stop if we're out of space (2px bottom padding)
+                        if (
+                            y + 12 > y1 - 2
+                        ):  # Stop if we're out of space (2px bottom padding)
                             break
-                        name_text = cv.create_text(x0 + 3, y, anchor="nw", text=nm, 
-                                                fill=TEXT_COLOR["normal"], font=NAME_FONT,
-                                                width=subw - 6)  # Enable text wrapping
+                        name_text = cv.create_text(
+                            x0 + 3,
+                            y,
+                            anchor="nw",
+                            text=nm,
+                            fill=TEXT_COLOR["normal"],
+                            font=NAME_FONT,
+                            width=subw - 6,
+                        )  # Enable text wrapping
                         name_bbox = cv.bbox(name_text)
-                        y += name_bbox[3] - name_bbox[1] + 2  # Actual height of wrapped text + small gap
+                        y += (
+                            name_bbox[3] - name_bbox[1] + 2
+                        )  # Actual height of wrapped text + small gap
+
 
 # ----------------------------------------
 if __name__ == "__main__":
