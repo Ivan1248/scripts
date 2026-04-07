@@ -264,6 +264,11 @@
       border: 1px solid var(--accent);
     }
 
+    .btn-bulk {
+      background: #e67e22;
+      color: white;
+    }
+
     .status-msg {
       text-align: center;
       font-weight: bold;
@@ -290,9 +295,11 @@
   </div>
   <div class="download-toolbar" id="toolbar" style="display: none;">
     <span id="status" class="status-msg"></span>
-    <button id="download-all-btn" class="btn btn-master">Download Master .ics (All Events)</button>
+    <button id="download-multi-btn" class="btn btn-master" style="display: none;">Download all (.zip)</button>
+    <button id="download-all-btn" class="btn btn-master">Download combined (all events in single .ics)</button>
     <div id="person-buttons" style="margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;"></div>
   </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     let globalSchedules = {};
     let uniqueDates = [];
@@ -731,14 +738,37 @@
 
     function renderButtons(names) {
       const container = document.getElementById('person-buttons');
+      const multiBtn = document.getElementById('download-multi-btn');
       container.innerHTML = '';
+
+      let activePeople = [];
       names.forEach(name => {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-person';
-        btn.innerText = `Download ${name}.ics`;
-        btn.onclick = () => downloadBlob(generateICS(name, globalSchedules[name]), `${name}_schedule.ics`);
-        container.appendChild(btn);
+        const events = globalSchedules[name] || [];
+        if (events.length > 0) {
+          activePeople.push(name);
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-person';
+          btn.innerText = `${name}.ics`;
+          btn.onclick = () => downloadBlob(generateICS(name, events), `${name}.ics`);
+          container.appendChild(btn);
+        }
       });
+
+      // Show bulk download only if there are multiple active people
+      if (activePeople.length > 1) {
+        multiBtn.style.display = 'inline-block';
+        multiBtn.onclick = async () => {
+          const zip = new JSZip();
+          activePeople.forEach(name => {
+            const events = globalSchedules[name];
+            zip.file(`${name}_schedule.ics`, generateICS(name, events));
+          });
+          const content = await zip.generateAsync({ type: "blob" });
+          downloadBlob(content, "All_Schedules.zip", "application/zip");
+        };
+      } else {
+        multiBtn.style.display = 'none';
+      }
     }
 
     function generateICS(name, events) {
@@ -752,12 +782,13 @@
       return ics + `END:VCALENDAR`;
     }
 
-    function downloadBlob(content, filename) {
-      const blob = new Blob([content], { type: 'text/calendar' });
+    function downloadBlob(content, filename, mimeType = 'text/calendar') {
+      const blob = (content instanceof Blob) ? content : new Blob([content], { type: mimeType });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 100);
     }
 
     document.getElementById("download-all-btn").onclick = () => {
