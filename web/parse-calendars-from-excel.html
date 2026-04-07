@@ -32,7 +32,6 @@
     }
 
     #output {
-      border: 1px solid var(--border-color);
       padding: 25px;
       text-align: center;
       margin-bottom: 20px;
@@ -72,7 +71,6 @@
     /* Precision Calendar Grid */
     .calendar-container {
       padding: 10px;
-      border: 1px solid var(--border-color);
       overflow-x: auto;
       margin-bottom: 30px;
       display: flex;
@@ -200,7 +198,6 @@
       padding: 4px;
       color: #000;
       font-size: 0.75em;
-      font-weight: bold;
       text-align: left;
       display: flex;
       flex-direction: column;
@@ -243,7 +240,6 @@
     /* Footer Toolbar */
     .download-toolbar {
       padding: 16px;
-      border: 1px solid var(--border-color);
       text-align: center;
     }
 
@@ -280,13 +276,13 @@
 
 <body>
   <h2>Excel to iCal</h2>
-  <div id="output" contenteditable="false"> CLICK HERE AND PASTE (CTRL+V) YOUR EXCEL TABLE </div>
+  <div id="output" contenteditable="false"> Click here and paste (CTRL+V) an Excel table </div>
   <div id="room-panel" class="room-config">
     <div style="margin-bottom: 15px;">
       <strong>Event name:</strong>
       <input type="text" id="event-name-input" class="room-input" placeholder="e.g. Decompartmentalization" style="margin-left: 10px;">
     </div>
-    <strong>Room names corresponding to colors:</strong>
+    <strong>Room names:</strong>
     <div id="room-list" style="margin-top:15px;"></div>
   </div>
   <div class="calendar-container" id="calendar-view" style="display: none;">
@@ -303,16 +299,52 @@
     let uniqueTimes = [];
     let colorMap = {}; // Maps RGB color to Room Name
     let globalEventName = "";
-    let predefinedRooms = [];
+    let predefinedRoomMap = {};
 
+    // Normalize color (avoids rgb spacing inconsistencies)
+    function normalizeColor(color) {
+      color = color.trim().toLowerCase();
+
+      // Already hex → normalize to full lowercase hex
+      if (color.startsWith('#')) {
+        if (color.length === 4) {
+          // #f00 → #ff0000
+          return '#' + [...color.slice(1)].map(c => c + c).join('');
+        }
+        return color;
+      }
+
+      // Convert rgb/rgba → hex
+      const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) return color;
+
+      const r = parseInt(match[1]).toString(16).padStart(2, '0');
+      const g = parseInt(match[2]).toString(16).padStart(2, '0');
+      const b = parseInt(match[3]).toString(16).padStart(2, '0');
+
+      return `#${r}${g}${b}`;
+    }
+
+    // --- Load from URL ---
     document.addEventListener("DOMContentLoaded", () => {
       const params = new URLSearchParams(window.location.search);
+
+      // Event name
       if (params.has('eventName')) {
         globalEventName = params.get('eventName');
         document.getElementById('event-name-input').value = globalEventName;
       }
+
+      // Rooms: color → name mapping
       if (params.has('rooms')) {
-        predefinedRooms = params.get('rooms').split(',');
+        const raw = params.get('rooms');
+
+        raw.split(',').forEach(pair => {
+          const [color, name] = pair.split('-');
+          if (color && name) {
+            predefinedRoomMap['#' + color.toLowerCase()] = name;
+          }
+        });
       }
     });
 
@@ -322,25 +354,31 @@
       if (uniqueDates.length > 0) renderMasterCalendar();
     });
 
+    // --- Update URL ---
     function updateUrlParams() {
       const url = new URL(window.location);
+
+      // Event name
       if (globalEventName) {
         url.searchParams.set('eventName', globalEventName);
       } else {
         url.searchParams.delete('eventName');
       }
 
-      const roomNames = Object.values(colorMap);
-      if (roomNames.length > 0 && roomNames.some(n => n.trim() !== "")) {
-        url.searchParams.set('rooms', roomNames.join(','));
+      // Encode color → room mapping
+      const entries = Object.entries(colorMap)
+        .filter(([color, name]) => name.trim() !== "");
+
+      if (entries.length > 0) {
+        const encoded = entries
+          .map(([color, name]) =>
+            `${normalizeColor(color).replace('#', '')}-${name}`
+          )
+          .join(',');
+
+        url.searchParams.set('rooms', encoded);
       } else {
         url.searchParams.delete('rooms');
-      }
-
-      for (const key of [...url.searchParams.keys()]) {
-        if (key.startsWith('room_')) {
-          url.searchParams.delete(key);
-        }
       }
 
       window.history.replaceState({}, '', url);
@@ -537,28 +575,34 @@
       document.body.removeChild(sandbox);
     });
 
+    // --- Setup Room Inputs ---
     function setupRoomInputs(colors) {
       const container = document.getElementById('room-list');
       container.innerHTML = '';
       colorMap = {};
-      let colorIndex = 0;
+
       colors.forEach(c => {
-        const defaultName = predefinedRooms[colorIndex] !== undefined ? predefinedRooms[colorIndex] : "";
+        const norm = normalizeColor(c);
+        const defaultName = predefinedRoomMap[norm] || "";
+
         colorMap[c] = defaultName;
+
         const div = document.createElement('div');
         div.className = 'room-row';
         div.innerHTML = `
-      <div class="color-swatch" style="background:${c}"></div>
-      <input type="text" class="room-input" placeholder="Enter room name..." value="${defaultName}" data-color="${c}">
-    `;
+          <div class="color-swatch" style="background:${c}"></div>
+          <input type="text" class="room-input" placeholder="Enter room name..." value="${defaultName}" data-color="${c}">
+        `;
+
         div.querySelector('input').oninput = (e) => {
           colorMap[c] = e.target.value;
           updateUrlParams();
-          renderMasterCalendar(); // Re-render to show room names
+          renderMasterCalendar();
         };
+
         container.appendChild(div);
-        colorIndex++;
       });
+
       document.getElementById('room-panel').style.display = "block";
     }
 
