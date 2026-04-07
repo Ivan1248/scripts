@@ -1,7 +1,6 @@
 # Small programs, scripts, and runnable notebooks
 
-## Web Tools
-The web-based tools in this repository are published via GitHub Pages:
-- **[Excel to iCal Parser](web/parse-calendars-from-excel.html)**: Convert Excel schedules to iCalendar files.
+## Web tools
 
-The tools are deployed from the `web/` directory.
+The web-based tools in this repository are published via GitHub Pages:
+- **[Web tools](https://ivan1248.github.io/scripts/)**
