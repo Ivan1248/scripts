@@ -237,27 +237,34 @@
     .btn {
       padding: 10px 18px;
       border: none;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-weight: 600;
       font-family: inherit;
+      color: white;
+      transition: background-color 0.2s;
     }
 
     .btn:hover {
-      filter: brightness(0.95);
+      filter: brightness(0.9);
     }
 
     .btn-master {
       background: var(--secondary);
-      color: white;
       font-size: 1rem;
     }
 
     .btn-person {
-      background: var(--bg-panel);
-      color: var(--primary);
-      border: 1px solid var(--primary);
+      background: var(--primary);
       font-size: 0.9rem;
+    }
+
+    .toolbar-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
     }
 
     .status-msg {
@@ -286,9 +293,11 @@
   </div>
   <div class="download-toolbar panel" id="toolbar" style="display: none;">
     <span id="status" class="status-msg"></span>
-    <button id="download-multi-btn" class="btn btn-master" style="display: none;">Download all (.zip)</button>
-    <button id="download-all-btn" class="btn btn-master">Download combined (all events in single .ics)</button>
-    <div id="person-buttons" style="margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;"></div>
+    <div class="toolbar-group">
+      <button id="download-multi-btn" class="btn btn-master" style="display: none;">Download all (.zip)</button>
+      <button id="download-all-btn" class="btn btn-master">Download combined (.ics)</button>
+    </div>
+    <div id="person-buttons" class="toolbar-group" style="margin-bottom: 0;"></div>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
