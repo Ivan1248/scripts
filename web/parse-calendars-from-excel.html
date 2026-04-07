@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    :root {
+      --accent: #4A90E2;
+      --panel-bg: #ffffff;
+      --panel-radius: 12px;
+      --border-color: #e0e6ed;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 20px;
+      background-color: #f4f7f9;
+      color: #333;
+    }
+
+    h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+
+    /* Shared Panel Styles */
+    #output,
+    .room-config,
+    .calendar-container,
+    .download-toolbar {
+      background: var(--panel-bg);
+      border-radius: var(--panel-radius);
+    }
+
+    #output {
+      border: 1px solid var(--border-color);
+      padding: 25px;
+      text-align: center;
+      margin-bottom: 20px;
+      cursor: pointer;
+      color: #999;
+    }
+
+    /* Room Configuration Panel */
+    .room-config {
+      padding: 20px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .room-row {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .color-swatch {
+      width: 30px;
+      height: 30px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    .room-input {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 200px;
+    }
+
+    /* Precision Calendar Grid */
+    .calendar-container {
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      overflow-x: auto;
+      margin-bottom: 30px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .calendar-header {
+      display: flex;
+      border-bottom: 3px solid #dee2e6;
+      margin-left: 60px;
+    }
+
+    .date-header-group {
+      flex: 1;
+      min-width: 150px;
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .date-title {
+      text-align: center;
+      padding: 8px;
+      background: #f8f9fa;
+      font-weight: bold;
+      color: #5a6c7f;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .person-headers {
+      display: flex;
+      flex: 1;
+    }
+
+    .person-title,
+    .person-lane {
+      border-right: 1px dotted var(--border-color);
+    }
+
+    .person-title:last-child,
+    .person-lane:last-child {
+      border-right: none;
+    }
+
+    .person-title {
+      flex: 1;
+      text-align: center;
+      padding: 5px;
+      font-size: 0.85em;
+      background: #fdfdfd;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .calendar-body {
+      display: flex;
+      position: relative;
+      min-width: max-content;
+      margin-top: 10px;
+    }
+
+    .time-ruler {
+      width: 60px;
+      flex-shrink: 0;
+      position: relative;
+      border-right: 1px solid var(--border-color);
+      background: white;
+    }
+
+    .time-marker {
+      position: absolute;
+      width: 100%;
+      text-align: right;
+      padding-right: 8px;
+      box-sizing: border-box;
+      font-size: 0.8em;
+      color: #888;
+      font-weight: bold;
+      transform: translateY(-50%);
+    }
+
+    .days-wrapper {
+      display: flex;
+      flex: 1;
+      position: relative;
+    }
+
+    .hour-grid-lines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hour-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .day-column {
+      flex: 1;
+      min-width: 150px;
+      display: flex;
+      position: relative;
+      border-left: 1px solid var(--border-color);
+      z-index: 2;
+    }
+
+    .person-lane {
+      flex: 1;
+      position: relative;
+    }
+
+    .event-block {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      border-radius: 4px;
+      padding: 4px;
+      color: #000;
+      font-size: 0.75em;
+      font-weight: bold;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    /* Event text */
+    .event-name {
+      display: block;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .event-name {
+      margin-bottom: 2px;
+      padding-bottom: 2px;
+    }
+
+    .event-time {
+      font-size: 0.85em;
+      font-weight: normal;
+      opacity: 0.65;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .room-label {
+      font-size: 0.82em;
+      font-weight: 600;
+      color: #222;
+      margin-top: auto;
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Footer Toolbar */
+    .download-toolbar {
+      padding: 16px;
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 5px;
+    }
+
+    .btn-master {
+      background: #27ae60;
+      color: white;
+      font-size: 1.1em;
+    }
+
+    .btn-person {
+      background: #eef2f7;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .status-msg {
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 10px;
+      display: block;
+      color: var(--accent);
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Excel to iCal</h2>
+  <div id="output" contenteditable="false"> CLICK HERE AND PASTE (CTRL+V) YOUR EXCEL TABLE </div>
+  <div id="room-panel" class="room-config">
+    <div style="margin-bottom: 15px;">
+      <strong>Event name:</strong>
+      <input type="text" id="event-name-input" class="room-input" placeholder="e.g. Decompartmentalization" style="margin-left: 10px;">
+    </div>
+    <strong>Room names corresponding to colors:</strong>
+    <div id="room-list" style="margin-top:15px;"></div>
+  </div>
+  <div class="calendar-container" id="calendar-view" style="display: none;">
+    <!-- Rendered content generated by JS will appear here -->
+  </div>
+  <div class="download-toolbar" id="toolbar" style="display: none;">
+    <span id="status" class="status-msg"></span>
+    <button id="download-all-btn" class="btn btn-master">Download Master .ics (All Events)</button>
+    <div id="person-buttons" style="margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;"></div>
+  </div>
+  <script>
+    let globalSchedules = {};
+    let uniqueDates = [];
+    let uniqueTimes = [];
+    let colorMap = {}; // Maps RGB color to Room Name
+    let globalEventName = "";
+    let predefinedRooms = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('eventName')) {
+        globalEventName = params.get('eventName');
+        document.getElementById('event-name-input').value = globalEventName;
+      }
+      if (params.has('rooms')) {
+        predefinedRooms = params.get('rooms').split(',');
+      }
+    });
+
+    document.getElementById('event-name-input').addEventListener('input', (e) => {
+      globalEventName = e.target.value;
+      updateUrlParams();
+      if (uniqueDates.length > 0) renderMasterCalendar();
+    });
+
+    function updateUrlParams() {
+      const url = new URL(window.location);
+      if (globalEventName) {
+        url.searchParams.set('eventName', globalEventName);
+      } else {
+        url.searchParams.delete('eventName');
+      }
+
+      const roomNames = Object.values(colorMap);
+      if (roomNames.length > 0 && roomNames.some(n => n.trim() !== "")) {
+        url.searchParams.set('rooms', roomNames.join(','));
+      } else {
+        url.searchParams.delete('rooms');
+      }
+
+      for (const key of [...url.searchParams.keys()]) {
+        if (key.startsWith('room_')) {
+          url.searchParams.delete(key);
+        }
+      }
+
+      window.history.replaceState({}, '', url);
+    }
+
+    // --- Helpers ---
+
+    function extractTime(text) {
+      const match = text.match(/(\d{1,2}:\d{2})/);
+      if (!match) return null;
+      const [h, m] = match[1].split(':');
+      return parseInt(h, 10) + ':' + m;
+    }
+
+    function timeToMinutes(t) {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function getDayAndDate(txt) {
+      const m = txt.match(/(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : null;
+    }
+
+    function formatICalDate(d, t) {
+      return d.replace(/-/g, '') + 'T' + t.replace(/:/g, '').padStart(4, '0') + '00';
+    }
+
+    function isEmptyColor(c) {
+      const s = c.replace(/\s/g, '').toLowerCase();
+      return s === 'rgb(255,255,255)' || s === 'rgba(0,0,0,0)' || s === 'transparent' || s === 'rgb(0,0,0)';
+    }
+
+    function mergeAdjacentEvents(schedules, allTimes) {
+      const timeMinutes = allTimes.map(t => timeToMinutes(t)).sort((a, b) => a - b);
+
+      for (let person in schedules) {
+        const events = schedules[person];
+        // Group by date and color
+        const grouped = {};
+        events.forEach(ev => {
+          const key = `${ev.date}|${ev.color}`;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(ev);
+        });
+
+        // Merge adjacent events within each group
+        const merged = [];
+        for (let key in grouped) {
+          const group = grouped[key].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+          let current = group[0];
+
+          for (let i = 1; i < group.length; i++) {
+            const prev = group[i - 1];
+            const curr = group[i];
+            const prevMinIdx = timeMinutes.indexOf(timeToMinutes(prev.time));
+            const currMinIdx = timeMinutes.indexOf(timeToMinutes(curr.time));
+
+            // Check if adjacent or overlapping directly 
+            if (currMinIdx === prevMinIdx + 1 || timeToMinutes(curr.time) <= timeToMinutes(current.rawEndTime)) {
+              // Adjacent or overlapping, extend current's end time if it ends later
+              if (timeToMinutes(curr.rawEndTime) > timeToMinutes(current.rawEndTime)) {
+                current.end = curr.end;
+                current.rawEndTime = curr.rawEndTime;
+              }
+            } else {
+              // Not adjacent, save current and start new
+              merged.push(current);
+              current = curr;
+            }
+          }
+          merged.push(current);
+        }
+
+        schedules[person] = merged.sort((a, b) => {
+          if (a.date !== b.date) return a.date.localeCompare(b.date);
+          return timeToMinutes(a.time) - timeToMinutes(b.time);
+        });
+      }
+
+      return schedules;
+    }
+
+    // --- Logic ---
+
+    document.getElementById("output").addEventListener("paste", (e) => {
+      const html = e.clipboardData.getData("text/html");
+      if (!html) return;
+      e.preventDefault();
+
+      const sandbox = document.createElement('div');
+      sandbox.innerHTML = html;
+      document.body.appendChild(sandbox);
+      const table = sandbox.querySelector('table');
+      if (!table) return;
+
+      // --- Helper: get logical column index for each cell, accounting for colspan ---
+      function buildLogicalColumnMap(row) {
+        const map = []; // map[cellIndex] = logicalColumnStart
+        let logicalCol = 0;
+        for (let j = 0; j < row.cells.length; j++) {
+          map.push(logicalCol);
+          logicalCol += row.cells[j].colSpan || 1;
+        }
+        return { map, totalLogicalCols: logicalCol };
+      }
+
+      // --- Parse header row to discover person names and their logical columns ---
+      const headerRow = table.rows[0];
+      const headerColMap = buildLogicalColumnMap(headerRow);
+
+      const names = [];
+      const nameLogicalCols = []; // logical column index for each person
+      for (let j = 0; j < headerRow.cells.length; j++) {
+        const val = headerRow.cells[j].textContent.trim();
+        if (val && val.length > 1) {
+          names.push(val);
+          nameLogicalCols.push(headerColMap.map[j]);
+        }
+      }
+
+      // Determine the logical column where person data starts
+      const dataStartLogicalCol = nameLogicalCols.length > 0 ? nameLogicalCols[0] : -1;
+
+      const schedules = {};
+      names.forEach(n => schedules[n] = []);
+      const dateSet = new Set();
+      const timeSet = new Set();
+      const foundColors = new Set();
+
+      for (let i = 1; i < table.rows.length; i++) {
+        const row = table.rows[i];
+        const rowColMap = buildLogicalColumnMap(row);
+
+        // Build a reverse map: logicalCol -> cellIndex (for quick lookup)
+        const logicalToCell = {};
+        for (let j = 0; j < row.cells.length; j++) {
+          const span = row.cells[j].colSpan || 1;
+          for (let s = 0; s < span; s++) {
+            logicalToCell[rowColMap.map[j] + s] = j;
+          }
+        }
+
+        // Scan prefix cells for date and times (everything before the data columns)
+        let dateStr = "", startTime = null, endTime = null, timesFound = 0;
+        for (let j = 0; j < row.cells.length; j++) {
+          // Stop scanning once we've reached the data area
+          if (rowColMap.map[j] >= dataStartLogicalCol) break;
+          const txt = row.cells[j].textContent.trim();
+          const d = getDayAndDate(txt); if (d) dateStr = d;
+          const t = extractTime(txt);
+          if (t) {
+            timesFound++;
+            if (timesFound === 1) startTime = t;
+            if (timesFound === 2) endTime = t;
+          }
+        }
+
+        if (!startTime || !endTime || !dateStr) continue;
+        dateSet.add(dateStr);
+        timeSet.add(startTime);
+
+        // Map each person's logical column to the actual cell in this row
+        for (let k = 0; k < names.length; k++) {
+          const cellIdx = logicalToCell[nameLogicalCols[k]];
+          if (cellIdx === undefined) continue;
+          const cell = row.cells[cellIdx];
+          if (!cell) continue;
+          const bgColor = window.getComputedStyle(cell).backgroundColor;
+          if (!isEmptyColor(bgColor)) {
+            foundColors.add(bgColor);
+            schedules[names[k]].push({
+              date: dateStr, time: startTime,
+              rawStartTime: startTime,
+              rawEndTime: endTime,
+              start: formatICalDate(dateStr, startTime),
+              end: formatICalDate(dateStr, endTime),
+              color: bgColor, students: cell.textContent.trim()
+            });
+          }
+        }
+      }
+
+      globalSchedules = mergeAdjacentEvents(schedules, Array.from(timeSet));
+      uniqueDates = Array.from(dateSet).sort();
+      uniqueTimes = Array.from(timeSet).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+
+      setupRoomInputs(foundColors);
+      renderMasterCalendar();
+      renderButtons(names);
+
+      document.getElementById("calendar-view").style.display = "block";
+      document.getElementById("toolbar").style.display = "block";
+      document.body.removeChild(sandbox);
+    });
+
+    function setupRoomInputs(colors) {
+      const container = document.getElementById('room-list');
+      container.innerHTML = '';
+      colorMap = {};
+      let colorIndex = 0;
+      colors.forEach(c => {
+        const defaultName = predefinedRooms[colorIndex] !== undefined ? predefinedRooms[colorIndex] : "";
+        colorMap[c] = defaultName;
+        const div = document.createElement('div');
+        div.className = 'room-row';
+        div.innerHTML = `
+      <div class="color-swatch" style="background:${c}"></div>
+      <input type="text" class="room-input" placeholder="Enter room name..." value="${defaultName}" data-color="${c}">
+    `;
+        div.querySelector('input').oninput = (e) => {
+          colorMap[c] = e.target.value;
+          updateUrlParams();
+          renderMasterCalendar(); // Re-render to show room names
+        };
+        container.appendChild(div);
+        colorIndex++;
+      });
+      document.getElementById('room-panel').style.display = "block";
+    }
+
+    function renderMasterCalendar() {
+      const container = document.getElementById('calendar-view');
+      container.innerHTML = '';
+
+      if (uniqueDates.length === 0) return;
+
+      // Configuration for precision grid
+      const pxPerMin = 1.5;
+
+      // 1. Calculate time bounds (start earliest hour, end latest hour)
+      let earliestMin = 24 * 60;
+      let latestMin = 0;
+
+      for (let person in globalSchedules) {
+        globalSchedules[person].forEach(ev => {
+          const sMin = timeToMinutes(ev.rawStartTime);
+          const eMin = timeToMinutes(ev.rawEndTime);
+          if (sMin < earliestMin) earliestMin = sMin;
+          if (eMin > latestMin) latestMin = eMin;
+        });
+      }
+
+      // Ensure reasonable bounds if empty
+      if (earliestMin >= latestMin) {
+        earliestMin = 8 * 60;
+        latestMin = 18 * 60;
+      }
+
+      // Snap to hours
+      const startHour = Math.floor(earliestMin / 60);
+      const endHour = Math.ceil(latestMin / 60);
+      const totalMinutes = (endHour - startHour) * 60;
+      const containerHeight = totalMinutes * pxPerMin;
+
+      // 2. Identify people active per day to create sub-columns
+      const peopleActivePerDay = {};
+      uniqueDates.forEach(date => {
+        peopleActivePerDay[date] = [];
+        for (let person in globalSchedules) {
+          if (globalSchedules[person].some(ev => ev.date === date)) {
+            peopleActivePerDay[date].push(person);
+          }
+        }
+      });
+
+      // 3. Build HTML Header
+      let headerHtml = `<div class="calendar-header">`;
+      uniqueDates.forEach(date => {
+        headerHtml += `<div class="date-header-group">
+      <div class="date-title">${new Date(date).toLocaleDateString('en-US', { weekday: 'long' })} <span style="font-weight:normal;font-size:0.85em;">${date}</span></div>
+      <div class="person-headers">`;
+        peopleActivePerDay[date].forEach(person => {
+          headerHtml += `<div class="person-title">${person}</div>`;
+        });
+        headerHtml += `</div></div>`;
+      });
+      headerHtml += `</div>`;
+
+      // 4. Build Body (Time Ruler + Days Wrapper)
+      let bodyHtml = `<div class="calendar-body" style="height: ${containerHeight}px;">`;
+
+      // 4a. Time Ruler
+      bodyHtml += `<div class="time-ruler">`;
+      for (let h = startHour; h <= endHour; h++) {
+        const yPos = (h - startHour) * 60 * pxPerMin;
+        const timeLabel = `${h}:00`;
+        bodyHtml += `<div class="time-marker" style="top: ${yPos}px;">${timeLabel}</div>`;
+      }
+      bodyHtml += `</div>`; // end time-ruler
+
+      // 4b. Grid & Columns
+      bodyHtml += `<div class="days-wrapper">`;
+
+      // Background grid lines
+      bodyHtml += `<div class="hour-grid-lines">`;
+      for (let h = startHour; h <= endHour; h++) {
+        const yPos = (h - startHour) * 60 * pxPerMin;
+        bodyHtml += `<div class="hour-line" style="top: ${yPos}px;"></div>`;
+      }
+      bodyHtml += `</div>`;
+
+      // Date Columns
+      uniqueDates.forEach(date => {
+        bodyHtml += `<div class="day-column">`;
+
+        // Person Lanes inside the day column
+        peopleActivePerDay[date].forEach(person => {
+          bodyHtml += `<div class="person-lane">`;
+
+          // Plot events for this person on this date
+          const personEvents = globalSchedules[person].filter(ev => ev.date === date);
+          personEvents.forEach(ev => {
+            const startTotalMins = timeToMinutes(ev.rawStartTime);
+            const endTotalMins = timeToMinutes(ev.rawEndTime);
+
+            const topPx = (startTotalMins - (startHour * 60)) * pxPerMin;
+            const heightPx = (endTotalMins - startTotalMins) * pxPerMin;
+
+            const roomName = colorMap[ev.color] || "";
+            const durText = `${ev.rawStartTime} - ${ev.rawEndTime}`;
+
+            const eventTitle = globalEventName ? `${globalEventName} - ${person}` : person;
+
+            bodyHtml += `
+          <div class="event-block" style="background-color: ${ev.color}; top: ${topPx}px; height: ${heightPx}px;" title="${eventTitle}\nLocation: ${roomName}\nTime: ${durText}">
+             <span class="event-name">${eventTitle}</span>
+             <!-- <span class="event-time">${durText}</span> -->
+             ${roomName ? `<span class="room-label">${roomName}</span>` : ''}
+          </div>`;
+          });
+
+          bodyHtml += `</div>`; // end person-lane
+        });
+
+        bodyHtml += `</div>`; // end day-column
+      });
+
+      bodyHtml += `</div>`; // end days-wrapper
+      bodyHtml += `</div>`; // end calendar-body
+
+      container.innerHTML = headerHtml + bodyHtml;
+    }
+
+    function renderButtons(names) {
+      const container = document.getElementById('person-buttons');
+      container.innerHTML = '';
+      names.forEach(name => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-person';
+        btn.innerText = `Download ${name}.ics`;
+        btn.onclick = () => downloadBlob(generateICS(name, globalSchedules[name]), `${name}_schedule.ics`);
+        container.appendChild(btn);
+      });
+    }
+
+    function generateICS(name, events) {
+      let ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//MasterParser//EN\n`;
+      events.forEach(ev => {
+        const room = colorMap[ev.color] || "TBD";
+        const summaryText = globalEventName ? globalEventName : name;
+        ics += `BEGIN:VEVENT\nUID:${Math.random()}@p\nDTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z\n`;
+        ics += `DTSTART:${ev.start}\nDTEND:${ev.end}\nSUMMARY:${summaryText}\nLOCATION:${room}\nEND:VEVENT\n`;
+      });
+      return ics + `END:VCALENDAR`;
+    }
+
+    function downloadBlob(content, filename) {
+      const blob = new Blob([content], { type: 'text/calendar' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+
+    document.getElementById("download-all-btn").onclick = () => {
+      let master = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//MasterParser//EN\n`;
+      for (let name in globalSchedules) {
+        globalSchedules[name].forEach(ev => {
+          const room = colorMap[ev.color] || "TBD";
+          const summaryText = globalEventName ? `${name} - ${globalEventName}` : name;
+          master += `BEGIN:VEVENT\nUID:${Math.random()}@p\nDTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z\n`;
+          master += `DTSTART:${ev.start}\nDTEND:${ev.end}\nSUMMARY:${summaryText}\nLOCATION:${room}\nEND:VEVENT\n`;
+        });
+      }
+      downloadBlob(master + `END:VCALENDAR`, "Master_Schedule.ics");
+    };
+  </script>
+</body>
+
+</html>
