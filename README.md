@@ -1,4 +1,4 @@
-# Scripts, notebooks and other small programs
+# Small programs, scripts, and runnable notebooks
 
 ## Web Tools
 The web-based tools in this repository are published via GitHub Pages:
