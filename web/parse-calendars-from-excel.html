@@ -4,82 +4,100 @@
 <head>
   <style>
     :root {
-      --accent: #4A90E2;
-      --panel-bg: #ffffff;
-      --panel-radius: 12px;
+      /* Colors */
+      --primary: #4A90E2;
+      --secondary: #27ae60;
+      --bg-app: #f4f7f9;
+      --bg-panel: #ffffff;
+      --bg-alt: #f8f9fa;
+      --text-main: #2c3e50;
+      --text-body: #333333;
+      --text-muted: #888888;
       --border-color: #e0e6ed;
+      
+      /* Spacing & Borders */
+      --radius: 12px;
+      --radius-sm: 4px;
+      --space-xs: 5px;
+      --space-sm: 10px;
+      --space-md: 15px;
+      --space-lg: 20px;
+      --space-xl: 25px;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
 
+    /* Base Styles */
     body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      padding: 20px;
-      background-color: #f4f7f9;
-      color: #333;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      padding: var(--space-lg);
+      background-color: var(--bg-app);
+      color: var(--text-body);
+      line-height: 1.5;
     }
 
     h2 {
       text-align: center;
-      color: #2c3e50;
+      color: var(--text-main);
+      margin-bottom: var(--space-xl);
     }
 
-    /* Shared Panel Styles */
-    #output,
-    .room-config,
-    .calendar-container,
-    .download-toolbar {
-      background: var(--panel-bg);
-      border-radius: var(--panel-radius);
+    /* Shared Panel Component */
+    .panel {
+      background: var(--bg-panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+      border: 1px solid var(--border-color);
     }
 
-    #output {
-      padding: 25px;
+    /* Drop Zone / Output Area */
+    #paste-zone {
+      padding: var(--space-xl);
       text-align: center;
-      margin-bottom: 20px;
       cursor: pointer;
-      color: #999;
+      color: var(--text-muted);
+    }
+    
+    #paste-zone:hover {
+      border-color: var(--primary);
+      background-color: #f0f7ff;
     }
 
-    /* Room Configuration Panel */
-    .room-config {
-      padding: 20px;
-      margin-bottom: 20px;
-      display: none;
+    .room-input {
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      width: 200px;
+      font-family: inherit;
     }
 
     .room-row {
       display: flex;
       align-items: center;
-      gap: 15px;
-      margin-bottom: 10px;
-      font-weight: bold;
+      gap: var(--space-md);
+      margin-bottom: var(--space-sm);
+      font-weight: 600;
     }
 
     .color-swatch {
-      width: 30px;
-      height: 30px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
-
-    .room-input {
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      width: 200px;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(0,0,0,0.1);
     }
 
     /* Precision Calendar Grid */
     .calendar-container {
-      padding: 10px;
+      padding: var(--space-sm);
       overflow-x: auto;
-      margin-bottom: 30px;
       display: flex;
       flex-direction: column;
     }
 
     .calendar-header {
       display: flex;
-      border-bottom: 3px solid #dee2e6;
+      border-bottom: 2px solid var(--text-main);
       margin-left: 60px;
     }
 
@@ -93,8 +111,8 @@
 
     .date-title {
       text-align: center;
-      padding: 8px;
-      background: #f8f9fa;
+      padding: 6px;
+      background: var(--bg-alt);
       font-weight: bold;
       color: #5a6c7f;
       border-bottom: 1px solid var(--border-color);
@@ -118,9 +136,9 @@
     .person-title {
       flex: 1;
       text-align: center;
-      padding: 5px;
-      font-size: 0.85em;
-      background: #fdfdfd;
+      padding: 4px;
+      font-size: 0.85rem;
+      background: #fafafa;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -130,7 +148,7 @@
       display: flex;
       position: relative;
       min-width: max-content;
-      margin-top: 10px;
+      margin-top: var(--space-sm);
     }
 
     .time-ruler {
@@ -146,10 +164,9 @@
       width: 100%;
       text-align: right;
       padding-right: 8px;
-      box-sizing: border-box;
-      font-size: 0.8em;
-      color: #888;
-      font-weight: bold;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
       transform: translateY(-50%);
     }
 
@@ -161,10 +178,7 @@
 
     .hour-grid-lines {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       pointer-events: none;
       z-index: 1;
     }
@@ -192,97 +206,76 @@
 
     .event-block {
       position: absolute;
-      left: 2px;
-      right: 2px;
-      border-radius: 4px;
-      padding: 4px;
+      inset: 2px 2px auto;
+      border-radius: var(--radius-sm);
+      padding: 4px 6px;
       color: #000;
-      font-size: 0.75em;
-      text-align: left;
-      display: flex;
-      flex-direction: column;
+      font-size: 0.75rem;
       border: 1px solid rgba(0, 0, 0, 0.1);
       overflow: hidden;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
     }
 
-    /* Event text */
     .event-name {
-      display: block;
+      font-weight: 600;
       word-break: break-word;
-      white-space: normal;
-    }
-
-    .event-name {
-      margin-bottom: 2px;
-      padding-bottom: 2px;
-    }
-
-    .event-time {
-      font-size: 0.85em;
-      font-weight: normal;
-      opacity: 0.65;
-      display: block;
       margin-bottom: 2px;
     }
 
     .room-label {
-      font-size: 0.82em;
-      font-weight: 600;
-      color: #222;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: rgba(0, 0, 0, 0.7);
       margin-top: auto;
-      display: block;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    /* Footer Toolbar */
-    .download-toolbar {
-      padding: 16px;
-      text-align: center;
-    }
-
+    /* Buttons & Toolbar */
     .btn {
-      padding: 10px 20px;
+      padding: 10px 18px;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       cursor: pointer;
       font-weight: 600;
-      margin: 5px;
+      font-family: inherit;
+    }
+    
+    .btn:hover {
+      filter: brightness(0.95);
     }
 
     .btn-master {
-      background: #27ae60;
+      background: var(--secondary);
       color: white;
-      font-size: 1.1em;
+      font-size: 1rem;
     }
 
     .btn-person {
-      background: #eef2f7;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-    }
-
-    .btn-bulk {
-      background: #e67e22;
-      color: white;
+      background: var(--bg-panel);
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      font-size: 0.9rem;
     }
 
     .status-msg {
+      display: block;
+      margin-bottom: var(--space-md);
       text-align: center;
       font-weight: bold;
-      margin-bottom: 10px;
-      display: block;
-      color: var(--accent);
+      color: var(--primary);
     }
   </style>
 </head>
 
 <body>
   <h2>Excel to iCal</h2>
-  <div id="output" contenteditable="false"> Click here and paste (CTRL+V) an Excel table </div>
-  <div id="room-panel" class="room-config">
+  <div id="paste-zone" class="panel" contenteditable="false"> Click here and paste (CTRL+V) an Excel table </div>
+  <div id="room-panel" class="panel" style="display: none;">
     <div style="margin-bottom: 15px;">
       <strong>Event name:</strong>
       <input type="text" id="event-name-input" class="room-input" placeholder="e.g. Decompartmentalization" style="margin-left: 10px;">
@@ -290,10 +283,10 @@
     <strong>Room names:</strong>
     <div id="room-list" style="margin-top:15px;"></div>
   </div>
-  <div class="calendar-container" id="calendar-view" style="display: none;">
+  <div class="calendar-container panel" id="calendar-view" style="display: none;">
     <!-- Rendered content generated by JS will appear here -->
   </div>
-  <div class="download-toolbar" id="toolbar" style="display: none;">
+  <div class="download-toolbar panel" id="toolbar" style="display: none;">
     <span id="status" class="status-msg"></span>
     <button id="download-multi-btn" class="btn btn-master" style="display: none;">Download all (.zip)</button>
     <button id="download-all-btn" class="btn btn-master">Download combined (all events in single .ics)</button>
@@ -471,7 +464,7 @@
 
     // --- Logic ---
 
-    document.getElementById("output").addEventListener("paste", (e) => {
+    document.getElementById("paste-zone").addEventListener("paste", (e) => {
       const html = e.clipboardData.getData("text/html");
       if (!html) return;
       e.preventDefault();
