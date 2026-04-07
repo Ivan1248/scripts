@@ -2,7 +2,7 @@ name: Deploy Web Tools
 
 on:
   push:
-    branches: ["main"]
+    branches: ["master"]
   workflow_dispatch:
 
 permissions:
