@@ -393,11 +393,15 @@
 
     // --- Helpers ---
 
+    function normalizeTime(t) {
+      if (!t) return null;
+      const [h, m] = t.split(':');
+      return h.padStart(2, '0') + ':' + m.padStart(2, '0');
+    }
+
     function extractTime(text) {
       const match = text.match(/(\d{1,2}:\d{2})/);
-      if (!match) return null;
-      const [h, m] = match[1].split(':');
-      return parseInt(h, 10) + ':' + m;
+      return match ? normalizeTime(match[1]) : null;
     }
 
     function timeToMinutes(t) {
@@ -411,7 +415,12 @@
     }
 
     function formatICalDate(d, t) {
-      return d.replace(/-/g, '') + 'T' + t.replace(/:/g, '').padStart(4, '0') + '00';
+      const paddedT = normalizeTime(t);
+      const dateObj = new Date(d + 'T' + paddedT);
+      if (isNaN(dateObj.getTime())) {
+        throw new Error(`Invalid date or time: ${d} ${t}`);
+      }
+      return dateObj.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     }
 
     function isEmptyColor(c) {
@@ -469,19 +478,7 @@
       return schedules;
     }
 
-    // --- Logic ---
-
-    document.getElementById("paste-zone").addEventListener("paste", (e) => {
-      const html = e.clipboardData.getData("text/html");
-      if (!html) return;
-      e.preventDefault();
-
-      const sandbox = document.createElement('div');
-      sandbox.innerHTML = html;
-      document.body.appendChild(sandbox);
-      const table = sandbox.querySelector('table');
-      if (!table) return;
-
+    function parseTable(table) {
       // --- Helper: get logical column index for each cell, accounting for colspan ---
       function buildLogicalColumnMap(row) {
         const map = []; // map[cellIndex] = logicalColumnStart
@@ -569,17 +566,58 @@
         }
       }
 
-      globalSchedules = mergeAdjacentEvents(schedules, Array.from(timeSet));
-      uniqueDates = Array.from(dateSet).sort();
-      uniqueTimes = Array.from(timeSet).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+      return { schedules, dateSet, timeSet, foundColors, names };
+    }
 
-      setupRoomInputs(foundColors);
-      renderMasterCalendar();
-      renderButtons(names);
+    // --- Logic ---
 
-      document.getElementById("calendar-view").style.display = "block";
-      document.getElementById("toolbar").style.display = "block";
-      document.body.removeChild(sandbox);
+    document.getElementById("paste-zone").addEventListener("paste", (e) => {
+      const statusEl = document.getElementById("status");
+      const toolbar = document.getElementById("toolbar");
+      statusEl.innerText = ""; 
+
+      // Clean up any existing sandbox from a previous attempt
+      const oldSandbox = document.getElementById("paste-sandbox");
+      if (oldSandbox) oldSandbox.remove();
+
+      try {
+        const html = e.clipboardData.getData("text/html");
+        if (!html) return;
+        e.preventDefault();
+
+        const sandbox = document.createElement('div');
+        sandbox.id = "paste-sandbox";
+        sandbox.style.position = 'static';
+        sandbox.classList.add('panel');
+        sandbox.innerHTML = html;
+        document.body.appendChild(sandbox);
+
+        const table = sandbox.querySelector('table');
+        if (!table) {
+          sandbox.remove();
+          return;
+        }
+
+        const { schedules, dateSet, timeSet, foundColors, names } = parseTable(table);
+
+        globalSchedules = mergeAdjacentEvents(schedules, Array.from(timeSet));
+        uniqueDates = Array.from(dateSet).sort();
+        uniqueTimes = Array.from(timeSet).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+
+        setupRoomInputs(foundColors);
+        renderMasterCalendar();
+        renderButtons(names);
+
+        document.getElementById("calendar-view").style.display = "block";
+        toolbar.style.display = "block";
+        
+        // Success: cleanup the sandbox
+        sandbox.remove();
+      } catch (err) {
+        console.error(err);
+        toolbar.style.display = "block"; // Ensure toolbar is shown so error message is visible
+        statusEl.innerText = "Error: " + err.message;
+      }
     });
 
     // --- Setup Room Inputs ---
